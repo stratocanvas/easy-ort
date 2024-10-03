@@ -133,4 +133,3 @@ input/
 output/
 *.onnx
 test.mjs
-package-lock.json
