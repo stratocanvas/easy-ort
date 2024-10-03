@@ -1,5 +1,9 @@
 {
   "name": "@stratocanvas/easy-ort",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stratocanvas/easy-ort.git"
+  },
   "version": "0.1.0",
   "description": "A simple wrapper for simple ONNX inference tasks",
   "main": "./src/index.mjs",
