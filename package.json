@@ -1,0 +1,16 @@
+{
+  "name": "@stratocanvas/easy-ort",
+  "version": "0.1.0",
+  "description": "A simple wrapper for simple ONNX inference tasks",
+  "main": "./src/index.mjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Stratocanvas",
+  "keywords": ["ONNX","ONNXRuntime", "ONNX Runtime"],
+  "license": "MIT",
+  "dependencies": {
+    "onnxruntime-node": "^1.19.2",
+    "sharp": "^0.33.5"
+  }
+}
