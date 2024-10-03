@@ -108,7 +108,7 @@ export function postprocess(output, options) {
       }
       break
     default:
-      throw new Error(`Unsupported task type: ${taskType}`)
+      throw new Error(`Unsupported task: ${taskType}`)
   }
   return results
 }
@@ -214,6 +214,6 @@ export function formatResult(processedOutput, labels, taskType) {
       }
 
     default:
-      throw new Error(`Unknown task type: ${taskType}`)
+      throw new Error(`Unsupported task: ${taskType}`)
   }
 }

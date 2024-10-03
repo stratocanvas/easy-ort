@@ -75,7 +75,6 @@ export async function runTask(imageBuffers, options, taskType) {
 
     return JSON.stringify(results, null, 2)
   } catch (error) {
-    console.error('오류 발생:', error)
-    return JSON.stringify({ error: error.message })
+    throw new Error(`${error.message}`)
   }
 }
