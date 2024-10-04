@@ -194,11 +194,8 @@ export function formatResult(processedOutput, labels, taskType) {
       return {
         detections: processedOutput.map(([x, y, w, h, conf, classIndex]) => ({
           label: labels[classIndex],
-          x,
-          y,
-          width: w,
-          height: h,
-          squareness: Number((1 - Math.abs(1 - w / h)).toFixed(3)),
+          box: [x, y, w, h],
+          squareness: Number((1 - Math.abs(1 - Math.min(w, h) / Math.max(w, h))).toFixed(4)),
           confidence: Number(conf.toFixed(4)),
         })),
       }
