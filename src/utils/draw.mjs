@@ -131,7 +131,7 @@ function drawClassification(
           (pred, index) => `
         <g transform="translate(0,${index * 50})">
           <text x="25" y="${95}" fill="white" font-size="16" font-family="Arial, sans-serif">
-            ${index + 1}. ${pred.class}
+            ${index + 1}. ${pred.label}
           </text>
           <text x="300" y="${95}" fill="white" font-size="16" font-family="Arial, sans-serif" text-anchor="end">
             ${(pred.confidence * 100).toFixed(1)}%

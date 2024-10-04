@@ -171,14 +171,14 @@ export function postprocessClassification(
 
   const results = Array.from(probabilities)
     .map((confidence, index) => ({
-      class: labels[index],
+      label: labels[index],
       confidence: confidence,
     }))
     .filter((item) => item.confidence >= confidenceThreshold)
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 3)
 
-  return results.length > 0 ? results : [{ class: 'Unknown', confidence: 0 }]
+  return results.length > 0 ? results : [{ label: 'Unknown', confidence: 0 }]
 }
 
 /**
@@ -206,8 +206,8 @@ export function formatResult(processedOutput, labels, taskType) {
     case 'classification':
       return {
         classifications: processedOutput.map(
-          ({ class: className, confidence }) => ({
-            class: className,
+          ({ label: LabelName, confidence }) => ({
+            label: LabelName,
             confidence: Number(confidence.toFixed(4)),
           }),
         ),
