@@ -14,6 +14,7 @@ export async function preprocess(imageBuffers, targetSize) {
 
     const { data: buffer, info } = await sharp(imageBuffer)
       .resize(targetSize[0], targetSize[1], { fit: 'fill' })
+      .removeAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true })
     const { width, height, channels } = info
