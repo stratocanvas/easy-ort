@@ -1,4 +1,5 @@
-# easy-ort
+# easy-ort &middot; [![build status](https://img.shields.io/github/actions/workflow/status/stratocanvas/easy-ort/npm-publish.yml?logo=github)](https://github.com/stratocanvas/easy-ort/actions/workflows/npm-publish.yml)  [![version](https://img.shields.io/npm/v/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort) [![downloads](https://img.shields.io/npm/dw/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort)
+
 
 A simple wrapper for simple ONNX inference tasks
 
