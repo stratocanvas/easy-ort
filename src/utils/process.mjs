@@ -14,6 +14,7 @@ export async function preprocess(imageBuffers, targetSize) {
 
     const { data: buffer, info } = await sharp(imageBuffer)
       .resize(targetSize[0], targetSize[1], { fit: 'fill' })
+      .removeAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true })
     const { width, height, channels } = info
@@ -171,14 +172,14 @@ export function postprocessClassification(
 
   const results = Array.from(probabilities)
     .map((confidence, index) => ({
-      class: labels[index],
+      label: labels[index],
       confidence: confidence,
     }))
     .filter((item) => item.confidence >= confidenceThreshold)
     .sort((a, b) => b.confidence - a.confidence)
     .slice(0, 3)
 
-  return results.length > 0 ? results : [{ class: 'Unknown', confidence: 0 }]
+  return results.length > 0 ? results : [{ label: 'Unknown', confidence: 0 }]
 }
 
 /**
@@ -194,11 +195,8 @@ export function formatResult(processedOutput, labels, taskType) {
       return {
         detections: processedOutput.map(([x, y, w, h, conf, classIndex]) => ({
           label: labels[classIndex],
-          x,
-          y,
-          width: w,
-          height: h,
-          squareness: Number((1 - Math.abs(1 - w / h)).toFixed(3)),
+          box: [x, y, w, h],
+          squareness: Number((1 - Math.abs(1 - Math.min(w, h) / Math.max(w, h))).toFixed(4)),
           confidence: Number(conf.toFixed(4)),
         })),
       }
@@ -206,8 +204,8 @@ export function formatResult(processedOutput, labels, taskType) {
     case 'classification':
       return {
         classifications: processedOutput.map(
-          ({ class: className, confidence }) => ({
-            class: className,
+          ({ label: LabelName, confidence }) => ({
+            label: LabelName,
             confidence: Number(confidence.toFixed(4)),
           }),
         ),

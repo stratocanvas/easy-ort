@@ -50,7 +50,6 @@ export async function runTask(imageBuffers, options, taskType) {
     const batch = imageBuffers.length
     const output = await runInference(modelPath, inputTensor, batch, targetSize)
     
-    // 한 번의 postprocess 호출로 모든 배치 처리
     const processedOutputs = postprocess(output, {
       confidenceThreshold,
       iouThreshold,
@@ -66,14 +65,14 @@ export async function runTask(imageBuffers, options, taskType) {
         await drawResult(
           imageBuffers[bat],
           processedOutput,
-          `./output/output_${bat + 1}.jpg`,
+          `./output/${bat + 1}.png`,
           { labels, taskType },
         )
       }
       return formatResult(processedOutput, labels, taskType)
     }))
 
-    return JSON.stringify(results, null, 2)
+    return results
   } catch (error) {
     throw new Error(`${error.message}`)
   }
