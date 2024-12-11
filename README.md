@@ -2,7 +2,14 @@
 
 # easy-ort &middot; [![build status](https://img.shields.io/github/actions/workflow/status/stratocanvas/easy-ort/npm-publish.yml?logo=github)](https://github.com/stratocanvas/easy-ort/actions/workflows/npm-publish.yml)  [![version](https://img.shields.io/npm/v/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort) [![downloads](https://img.shields.io/npm/dw/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort)
 
-A simple wrapper for simple ONNX inference tasks
+A lightweight and intuitive wrapper for ONNX Runtime in Node.js. Designed for easy inference of object detection and image classification models.
+
+## Features
+- 🚀 Simple chainable API
+- 🖼️ Batch processing support
+- 📊 Automatic result visualization
+- 🎯 Built-in NMS (Non-Maximum Suppression)
+- 🔧 Flexible configuration options
 
 ## Installation 
 
@@ -10,106 +17,127 @@ A simple wrapper for simple ONNX inference tasks
 npm i @stratocanvas/easy-ort
 ```
 
-## Usage
+## Quick Start
+
+```javascript
+import EasyORT from '@stratocanvas/easy-ort'
+import fs from 'node:fs/promises'
+
+// Load your image(s)
+const imageBuffer = await fs.readFile('./image.jpg')
+
+// Run inference
+const result = await new EasyORT()
+  .data([imageBuffer])
+  .model('./model.onnx')
+  .draw()  // Optional: visualize results
+  .run('detection', {
+    labels: ['person', 'car'],
+  })
+```
+
+## Usage Examples
 ### Object Detection
 
 ```javascript
-import { runDetection } from '@stratocanvas/easy-ort'
+import EasyORT from '@stratocanvas/easy-ort'
 
-const options = {
-  modelPath: './path/to/model.onnx',
-  labels: ['person', 'cat', 'dog', ...],
-  iouThreshold: 0.45,
-  confidenceThreshold: 0.2,
-  targetSize: [384, 384],
-  headless: false,
-}
+const detector = new EasyORT()
+  .data(imageBuffers)
+  .model('./yolo.onnx')
+  .draw()  // Optional: save visualization to ./output/
 
-// Image should be provided as buffer
-// You can batch process multiple images
-const imageBuffers = [...]
-const result = await runDetection(imageBuffers, options)
-console.log(JSON.stringify(result))
+const result = await detector.run('detection', {
+  labels: ['person', 'car', 'dog'],
+  confidenceThreshold: 0.3,  // Minimum confidence score (0-1)
+  iouThreshold: 0.45,        // NMS IoU threshold (0-1)
+  targetSize: [640, 640],    // Input resolution [width, height]
+})
 
-/*result:
-[
-  {
-    "detections": [
-      {
-        "label": "cat",
-        "box": [x, y, w, h]
-        "squareness": 0.833,
-        "confidence": 0.986
-      },
-      {
-        "label": "dog",
-        "box": [x, y, w, h]
-        "squareness": 0.933,
-        "confidence": 0.564
-      }
-    ]
-  }
-]
+/* Result format:
+[{
+  "detections": [{
+    "label": "person",
+    "box": [x, y, width, height],  // Pixel coordinates
+    "confidence": 0.92,            // 0-1 score
+    "squareness": 0.85            // Box aspect ratio (0-1)
+  }, ...]
+}]
 */
 ```
 
 ### Image Classification
 ```javascript
-import { runClassification } from '@stratocanvas/easy-ort'
+import EasyORT from '@stratocanvas/easy-ort'
 
-// Configuration options for the classification
-const options = {
-  modelPath: './path/to/model.onnx',
-  labels: ['happy', 'sad', 'neutral', ...],
-  confidenceThreshold: 0.2,
-  targetSize: [384, 384],
-  headless: false,
-}
+const classifier = new EasyORT()
+  .data(imageBuffers)
+  .model('./classifier.onnx')
 
-// Image should be provided as buffer
-// You can batch process multiple images
-const imageBuffers = [...]
-const result = await runClassification(imageBuffers, options)
-console.log(JSON.stringify(result))
+const result = await classifier.run('classification', {
+  labels: ['cat', 'dog', 'bird'],
+  confidenceThreshold: 0.2,     // Minimum confidence to include
+  targetSize: [224, 224],       // Input resolution [width, height]
+})
 
-/*result:
-[
-  {
-    "classifications": [
-      {
-        "label": "happy",
-        "confidence": 0.753
-      },
-      {
-        "label": "neutral",
-        "confidence": 0.215
-      }
-    ]
-  }
-]
+/* Result format:
+[{
+  "classifications": [{
+    "label": "dog",
+    "confidence": 0.95  // 0-1 score
+  }, ...]
+}]
 */
-
 ```
 
-### Options
-- `modelPath` string: Path to ONNX model file
+## API Reference
 
-- `labels` string[]: Detection or classification labels
+### Methods
+- `.data(buffers: Buffer[])`: Set input image(s)
+- `.model(path: string)`: Set ONNX model path
+- `.draw()`: Enable result visualization
+- `.run(task, config)`: Execute inference
 
-- `iouThreshold` number: IoU threshold for detection inference (default: `0.45`)
+### Configuration
 
-- `confidenceThreshold` number: Confidence threshold (default: `0.2`)
+#### Detection Config
+```typescript
+type DetectionConfig = {
+  labels: string[];                      // Class labels
+  iouThreshold?: number;                 // NMS threshold (default: 0.45)
+  confidenceThreshold?: number;          // Min confidence (default: 0.2)
+  targetSize?: [number, number];         // Input size (default: [384, 384])
+}
+```
 
-- `targetSize` number[]: Model inference size [height, width] (default: `[384, 384]`)
+#### Classification Config
+```typescript
+type ClassificationConfig = {
+  labels: string[];                      // Class labels
+  confidenceThreshold?: number;          // Min confidence (default: 0.2)
+  targetSize?: [number, number];         // Input size (default: [384, 384])
+}
+```
 
-- `headless` bool: Disable drawing and saving inference result (default: `false`)
+## Model Requirements
+- Single input node (NCHW format)
+- Single output node
+  - Detection: [batch_size, num_boxes, 5 + num_classes]
+  - Classification: [batch_size, num_classes]
+- Input normalization: 0-1 range
 
-## Precautions
+## Visualization
+When `.draw()` is enabled:
+- Detection: Boxes and labels are drawn on images
+- Classification: Top predictions are overlaid on images
+- Results are saved to `./output/` directory
 
-- This library only runs in a Node.js environment (it depends on `onnxruntime-node` library)
-- The model must have only one input node and one output node
-- Result images are saved in the `./output/` directory by default
-- Input images should be passed as buffers
+## Limitations
+
+- Node.js environment only (uses `onnxruntime-node`)
+- Input images must be provided as buffers
+- Single input/output node models only
+- Visualization requires write access to `./output/`
 
 ## License
 
