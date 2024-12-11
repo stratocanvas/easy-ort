@@ -11,12 +11,35 @@ on:
       - main
 
 jobs:
-  release:
+  version-check:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check version
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          NPM_VERSION=$(npm view . version 2>/dev/null || echo "0.0.0")
+          if [ "v$PACKAGE_VERSION" != "${{ github.ref_name }}" ]; then
+            echo "Package version ($PACKAGE_VERSION) does not match tag (${{ github.ref_name }})"
+            exit 1
+          fi
+          if [ "$PACKAGE_VERSION" = "$NPM_VERSION" ]; then
+            echo "Version $PACKAGE_VERSION already exists on npm"
+            exit 1
+          fi
+
+  release:
+    needs: version-check
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.1.4
@@ -27,9 +50,11 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
+          body_path: CHANGELOG.md
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v') && github.event.base_ref == 'refs/heads/main'
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,11 +64,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
           registry-url: https://registry.npmjs.org/
       - run: npm ci
       - run: npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      
       - uses: actions/setup-node@v4
         with:
           registry-url: https://npm.pkg.github.com/
