@@ -133,3 +133,4 @@ input/
 output/
 *.onnx
 test.mjs
+test.ts
