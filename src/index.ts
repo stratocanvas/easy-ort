@@ -5,9 +5,7 @@ import type {
 	TaskResult,
 	TaskType,
 	TaskOptions,
-  ProcessedOutput,
-  DetectionOutput,
-  ClassificationOutput
+  ProcessedOutput
 } from "./types";
 
 class TaskBuilder {

@@ -6,22 +6,7 @@ import type {
   TaskResult,
   ProcessedOutput,
   ProcessOptions,
-  DetectionOutput,
-  ClassificationOutput,
-  EmbeddingOutput
 } from '../types';
-
-function isNumberArray(output: ProcessedOutput | number[][]): output is number[][] {
-  return Array.isArray(output) && output.every(arr => Array.isArray(arr));
-}
-
-function isDetectionOutput(output: ProcessedOutput | number[][]): output is DetectionOutput {
-  return !isNumberArray(output) && 'boxes' in output && 'scores' in output && 'labels' in output;
-}
-
-function isClassificationOutput(output: ProcessedOutput | number[][]): output is ClassificationOutput {
-  return !isNumberArray(output) && 'label' in output && 'confidence' in output;
-}
 
 /**
  * 이미지를 전처리하여 텐서로 변환합니다.

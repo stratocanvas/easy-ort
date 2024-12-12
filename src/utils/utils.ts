@@ -1,4 +1,3 @@
-import type { Box } from '../types';
 
 /**
  * Calculate IoU (Intersection over Union) between two bounding boxes
