@@ -1,5 +1,27 @@
-import sharp from 'sharp'
-import { NMS, softmax } from './utils.mjs'
+import sharp from 'sharp';
+import { NMS, softmax } from './utils';
+import type { Tensor } from 'onnxruntime-node';
+import type {
+  TaskType,
+  TaskResult,
+  ProcessedOutput,
+  ProcessOptions,
+  DetectionOutput,
+  ClassificationOutput,
+  EmbeddingOutput
+} from '../types';
+
+function isNumberArray(output: ProcessedOutput | number[][]): output is number[][] {
+  return Array.isArray(output) && output.every(arr => Array.isArray(arr));
+}
+
+function isDetectionOutput(output: ProcessedOutput | number[][]): output is DetectionOutput {
+  return !isNumberArray(output) && 'boxes' in output && 'scores' in output && 'labels' in output;
+}
+
+function isClassificationOutput(output: ProcessedOutput | number[][]): output is ClassificationOutput {
+  return !isNumberArray(output) && 'label' in output && 'confidence' in output;
+}
 
 /**
  * 이미지를 전처리하여 텐서로 변환합니다.
@@ -7,8 +29,8 @@ import { NMS, softmax } from './utils.mjs'
  * @param {number[]} targetSize 이미지의 타겟 크기 [width, height].
  * @returns {Promise<{inputTensor: Float32Array, originalSizes: number[][]}>} 전처리된 텐서와 원본 이미지 크기 배열.
  */
-export async function preprocess(imageBuffers, targetSize) {
-  const processImage = async (imageBuffer) => {
+export async function preprocess(imageBuffers: Buffer[], targetSize: [number, number]) {
+  const processImage = async (imageBuffer: Buffer) => {
     const metadata = await sharp(imageBuffer).metadata()
     const originalSize = [metadata.height, metadata.width]
 
@@ -35,11 +57,11 @@ export async function preprocess(imageBuffers, targetSize) {
   const inputTensor = new Float32Array(
     results.length * 3 * targetSize[1] * targetSize[0],
   )
-  const originalSizes = []
+  const originalSizes: [number, number][] = []
 
   results.forEach(({ data, originalSize }, i) => {
     inputTensor.set(data, i * 3 * targetSize[1] * targetSize[0])
-    originalSizes.push(originalSize)
+    originalSizes.push(originalSize as [number, number])
   })
 
   return { inputTensor, originalSizes }
@@ -54,7 +76,7 @@ export async function preprocess(imageBuffers, targetSize) {
  * @param {number} batch 배치 크기.
  * @returns {number[][]} 바운딩 박스 배열 [x, y, w, h, confidence, class].
  */
-export function postprocess(output, options) {
+export function postprocess(output: Tensor, options: ProcessOptions) {
   const {
     confidenceThreshold,
     iouThreshold,
@@ -63,43 +85,47 @@ export function postprocess(output, options) {
     labels,
     taskType,
     batch,
-  } = options
-  const results = []
+    shouldNormalize,
+    shouldMerge,
+  } = options;
+  const results = [];
+
+  const outputData = output.data as Float32Array;
 
   switch (taskType) {
     case 'detection':
       {
-        const [, channels, numPredictions] = output.dims
+        const [, channels, numPredictions] = output.dims;
         for (let b = 0; b < batch; b++) {
-          const outputData = output.data.slice(
+          const slicedData = outputData.slice(
             b * channels * numPredictions,
             (b + 1) * channels * numPredictions,
-          )
-          results.push(
-            postprocessDetection(
-              outputData,
-              confidenceThreshold,
-              iouThreshold,
-              targetSize,
-              originalSizes[b],
-              numPredictions,
-              channels,
-            ),
-          )
+          );
+          const result = postprocessDetection(
+            slicedData,
+            confidenceThreshold,
+            iouThreshold,
+            targetSize,
+            originalSizes[b],
+            numPredictions,
+            channels,
+          );
+          console.log('Detection result:', JSON.stringify(result, null, 2));
+          results.push(result);
         }
       }
-      break
+      break;
     case 'classification':
       {
-        const isLogit = output.data[0] < 0 || output.data[0] > 1
+        const isLogit = outputData[0] < 0 || outputData[0] > 1
         for (let b = 0; b < batch; b++) {
-          const outputData = output.data.slice(
+          const slicedData = outputData.slice(
             b * labels.length,
             (b + 1) * labels.length,
           )
           results.push(
             postprocessClassification(
-              outputData,
+              slicedData,
               labels,
               confidenceThreshold,
               isLogit,
@@ -109,19 +135,19 @@ export function postprocess(output, options) {
       }
       break
     default:
-      throw new Error(`Unsupported task: ${taskType}`)
+      throw new Error(`Unsupported task: ${taskType}`);
   }
-  return results
+  return results;
 }
 
 export function postprocessDetection(
-  outputData,
-  confThreshold,
-  iouThreshold,
-  targetSize,
-  originalSize,
-  numPredictions,
-  channels,
+  outputData: Float32Array,
+  confThreshold: number,
+  iouThreshold: number,
+  targetSize: [number, number],
+  originalSize: [number, number],
+  numPredictions: number,
+  channels: number,
 ) {
   const predictions = []
 
@@ -134,22 +160,26 @@ export function postprocessDetection(
     predictions.push(pred)
   }
 
-  let boxes = []
+  let boxes: [number, number, number, number, number, number][] = []
+
   for (const prediction of predictions) {
     const [x_center, y_center, width, height, ...confidences] = prediction
     const maxConfidence = Math.max(...confidences)
     const classIndex = confidences.indexOf(maxConfidence)
 
     if (maxConfidence > confThreshold) {
-      const x = (x_center - width / 2) / targetSize[0]
-      const y = (y_center - height / 2) / targetSize[1]
-      const w = width / targetSize[0]
-      const h = height / targetSize[1]
-      boxes.push([x, y, w, h, maxConfidence, classIndex])
+      boxes.push([
+        (x_center - width / 2) / targetSize[0],
+        (y_center - height / 2) / targetSize[1],
+        width / targetSize[0],
+        height / targetSize[1],
+        maxConfidence,
+        classIndex
+      ])
     }
   }
 
-  boxes = NMS(boxes, iouThreshold)
+  boxes = NMS(boxes, iouThreshold) as [number, number, number, number, number, number][]
 
   return boxes.map((box) => {
     const [x, y, w, h, conf, classIndex] = box
@@ -162,24 +192,21 @@ export function postprocessDetection(
 }
 
 export function postprocessClassification(
-  outputData,
-  labels,
-  confidenceThreshold,
-  isLogit,
-) {
-  // logit인 경우 softmax 적용
-  const probabilities = isLogit ? softmax(outputData) : outputData
+  outputData: Float32Array,
+  labels: string[],
+  confidenceThreshold: number,
+  isLogit: boolean,
+): Array<{label: string, confidence: number}> {
+  const probabilities = isLogit ? softmax(Array.from(outputData)) : outputData;
 
-  const results = Array.from(probabilities)
+  return Array.from(probabilities)
     .map((confidence, index) => ({
       label: labels[index],
       confidence: confidence,
     }))
     .filter((item) => item.confidence >= confidenceThreshold)
     .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 3)
-
-  return results.length > 0 ? results : [{ label: 'Unknown', confidence: 0 }]
+    .slice(0, 3);
 }
 
 /**
@@ -189,9 +216,14 @@ export function postprocessClassification(
  * @param {string} taskType 작업 유형 ('detection' 또는 'classification')
  * @returns {Object} 형식화된 결과 객체
  */
-export function formatResult(processedOutput, labels, taskType) {
+export function formatResult(
+  processedOutput: ProcessedOutput | number[][],
+  labels: string[],
+  taskType: TaskType
+): TaskResult {
   switch (taskType) {
-    case 'detection':
+    case 'detection': {
+      if (!Array.isArray(processedOutput)) throw new Error('Invalid detection output');
       return {
         detections: processedOutput.map(([x, y, w, h, conf, classIndex]) => ({
           label: labels[classIndex],
@@ -199,19 +231,30 @@ export function formatResult(processedOutput, labels, taskType) {
           squareness: Number((1 - Math.abs(1 - Math.min(w, h) / Math.max(w, h))).toFixed(4)),
           confidence: Number(conf.toFixed(4)),
         })),
+      };
+    }
+
+    case 'classification': {
+      if (!Array.isArray(processedOutput)) {
+        throw new Error('Invalid classification output format');
       }
 
-    case 'classification':
-      return {
-        classifications: processedOutput.map(
-          ({ label: LabelName, confidence }) => ({
-            label: LabelName,
+      // Check if it's the expected format
+      if (processedOutput.length > 0 && typeof processedOutput[0] === 'object' && 'label' in processedOutput[0]) {
+        const outputs = processedOutput as unknown as Array<{label: string, confidence: number}>;
+        return {
+          classifications: outputs.map(({ label, confidence }) => ({
+            label,
             confidence: Number(confidence.toFixed(4)),
-          }),
-        ),
+          })),
+        };
       }
+      
+      throw new Error('Invalid classification output format');
+    }
+
 
     default:
-      throw new Error(`Unsupported task: ${taskType}`)
+      throw new Error(`Unsupported task: ${taskType}`);
   }
-}
+} 
