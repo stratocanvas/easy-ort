@@ -70,6 +70,7 @@ class TaskBuilder {
 				const preprocessed = await preprocess(
 					this.inputs as Buffer[],
 					this.options.targetSize || [384, 384],
+					this.taskType
 				);
 				inputTensor = preprocessed.inputTensor;
 				originalSizes = preprocessed.originalSizes;
@@ -124,7 +125,7 @@ class TaskBuilder {
 						await drawResult(
 							this.inputs[bat] as Buffer,
 							processedOutput as number[][] | { label: string; confidence: number }[],
-							`./output/${bat + 1}.png`,
+							`./output/${this.taskType}/${bat + 1}.png`,
 							{
 								labels: this.options.labels || [],
 								taskType: this.taskType as "detection" | "classification",
