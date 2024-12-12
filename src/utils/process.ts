@@ -95,7 +95,6 @@ export function postprocess(output: Tensor, options: ProcessOptions) {
             numPredictions,
             channels,
           );
-          console.log('Detection result:', JSON.stringify(result, null, 2));
           results.push(result);
         }
       }
