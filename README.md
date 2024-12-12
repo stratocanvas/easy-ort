@@ -1,6 +1,6 @@
 ![](./og.png)
 
-# easy-ort &middot; [![build status](https://img.shields.io/github/actions/workflow/status/stratocanvas/easy-ort/npm-publish.yml?logo=github)](https://github.com/stratocanvas/easy-ort/actions/workflows/npm-publish.yml)  [![version](https://img.shields.io/npm/v/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort) [![downloads](https://img.shields.io/npm/dw/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort)
+# easy-ort &middot; [![build status](https://img.shields.io/github/actions/workflow/status/stratocanvas/easy-ort/npm-publish.yml?logo=github)](https://github.com/stratocanvas/easy-ort/actions/workflows/npm-publish.yml) [![codecov](https://codecov.io/gh/stratocanvas/easy-ort/graph/badge.svg?token=9ODSUZ09UU)](https://codecov.io/gh/stratocanvas/easy-ort) [![version](https://img.shields.io/npm/v/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort) [![downloads](https://img.shields.io/npm/dw/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort)
 
 A lightweight and intuitive wrapper for ONNX Runtime in Node.js. Supports object detection, image classification, and both vision/text embeddings with a clean, chainable API.
 
