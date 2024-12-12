@@ -19,6 +19,12 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test
+        env:
+          CI: true
+          TEST_IMAGES: ${{ secrets.TEST_IMAGES }}
+          DETECTION_MODEL_URL: ${{ vars.DETECTION_MODEL_URL }}
+          CLASSIFICATION_MODEL_URL: ${{ vars.CLASSIFICATION_MODEL_URL }}
+          EMBEDDING_MODEL_URL: ${{ vars.EMBEDDING_MODEL_URL }}
 
   version-check:
     needs: test
