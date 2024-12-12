@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Create directories
+        run: |
+          mkdir -p models
+          mkdir -p output
+          
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: ${{ runner.os }}-models-${{ hashFiles('test.spec.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-models-
+            
+      - name: Run tests
+        run: npm test
+        env:
+          CI: true
+          TEST_IMAGES: ${{ secrets.TEST_IMAGES }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          DETECTION_MODEL_URL: ${{ vars.DETECTION_MODEL_URL }}
+          CLASSIFICATION_MODEL_URL: ${{ vars.CLASSIFICATION_MODEL_URL }}
+          EMBEDDING_MODEL_URL: ${{ vars.EMBEDDING_MODEL_URL }}
+          
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: |
+            output/*.png
+            coverage/
+          if-no-files-found: ignore
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./coverage/
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+          verbose: true
