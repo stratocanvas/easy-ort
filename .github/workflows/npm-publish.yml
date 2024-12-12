@@ -51,35 +51,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check version change
+      - name: Check version
         id: check
         run: |
-          git checkout HEAD^1
-          OLD_VERSION=$(node -p "require('./package.json').version")
-          git checkout HEAD
           NEW_VERSION=$(node -p "require('./package.json').version")
-          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
-            echo "No version change detected"
+          echo "Current version: $NEW_VERSION"
+          
+          NPM_VERSION=$(npm view . version 2>/dev/null || echo "0.0.0")
+          echo "NPM version: $NPM_VERSION"
+          
+          if [ "$NEW_VERSION" = "$NPM_VERSION" ]; then
+            echo "Error: Version $NEW_VERSION already exists on npm"
             exit 1
           fi
           
           # Check if tag exists for this version
           if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
-            echo "Tag v$NEW_VERSION already exists"
+            echo "Error: Tag v$NEW_VERSION already exists"
             exit 1
           fi
           
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          NPM_VERSION=$(npm view . version 2>/dev/null || echo "0.0.0")
-          if [ "$NEW_VERSION" = "$NPM_VERSION" ]; then
-            echo "Version $NEW_VERSION already exists on npm"
-            exit 1
-          fi
 
   release:
     needs: version-check
