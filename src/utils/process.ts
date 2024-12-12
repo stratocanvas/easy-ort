@@ -134,6 +134,37 @@ export function postprocess(output: Tensor, options: ProcessOptions) {
         }
       }
       break
+    case 'embedding':
+      {
+        const [batchSize, dimension] = output.dims;
+        for (let b = 0; b < batch; b++) {
+          const slicedData = outputData.slice(
+            b * dimension,
+            (b + 1) * dimension,
+          );
+          let embedding = Array.from(slicedData);
+          
+          if (shouldNormalize) {
+            // L2 normalization
+            const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+            embedding = embedding.map(val => val / norm);
+          }
+          
+          results.push(embedding);
+        }
+        
+        if (shouldMerge && batch > 1) {
+          // Average embeddings
+          const mergedEmbedding = new Array(results[0].length).fill(0);
+          for (const result of results) {
+            for (let i = 0; i < result.length; i++) {
+              mergedEmbedding[i] += result[i] / batch;
+            }
+          }
+          return [mergedEmbedding];
+        }
+      }
+      break;
     default:
       throw new Error(`Unsupported task: ${taskType}`);
   }
@@ -253,6 +284,10 @@ export function formatResult(
       throw new Error('Invalid classification output format');
     }
 
+    case 'embedding': {
+      if (!Array.isArray(processedOutput)) throw new Error('Invalid embedding output');
+      return processedOutput;
+    }
 
     default:
       throw new Error(`Unsupported task: ${taskType}`);

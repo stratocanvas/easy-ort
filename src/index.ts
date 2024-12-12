@@ -15,8 +15,15 @@ class TaskBuilder {
 	private modelPath = "";
 	private options: TaskOptions = {};
 	private shouldDraw = false;
+	private shouldNormalize = false;
+	private shouldMerge = false;
 	private taskType: TaskType;
+	private inputType: "image" | "text";
 
+	constructor(taskType: TaskType, inputType: "image" | "text") {
+		this.taskType = taskType;
+		this.inputType = inputType;
+	}
 
 	withOptions(options: TaskOptions) {
 		this.options = { ...this.options, ...options };
@@ -38,6 +45,15 @@ class TaskBuilder {
 		return this;
 	}
 
+	andNormalize() {
+		this.shouldNormalize = true;
+		return this;
+	}
+
+	andMerge() {
+		this.shouldMerge = true;
+		return this;
+	}
 
 	async now(): Promise<TaskResult[]> {
 		if (!this.inputs.length) {
@@ -60,6 +76,19 @@ class TaskBuilder {
 				inputTensor = preprocessed.inputTensor;
 				originalSizes = preprocessed.originalSizes;
 			} else {
+				// Text input processing
+				const maxLength = Math.max(
+					...(this.inputs as string[]).map((text) => text.length),
+				);
+				inputTensor = new BigInt64Array(batch * maxLength);
+
+				// Simple tokenization (you might want to use a proper tokenizer)
+				(this.inputs as string[]).forEach((text, i) => {
+					const chars = Array.from(text);
+					chars.forEach((char, j) => {
+						inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
+					});
+				});
 			}
 
 			const session = await InferenceSession.create(this.modelPath);
@@ -87,6 +116,8 @@ class TaskBuilder {
 				labels: this.options.labels || [],
 				taskType: this.taskType,
 				batch,
+				shouldNormalize: this.shouldNormalize,
+				shouldMerge: this.shouldMerge,
 			});
 
 			if (this.shouldDraw && this.taskType !== "embedding") {
@@ -130,4 +161,7 @@ export default class EasyORT {
 		return new TaskBuilder("classification", "image").withOptions({ labels });
 	}
 
+	createEmbeddingsFor(type: "image" | "text") {
+		return new TaskBuilder("embedding", type);
+	}
 }
