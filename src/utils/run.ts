@@ -2,6 +2,7 @@ import { InferenceSession, Tensor } from 'onnxruntime-node';
 import { preprocess, postprocess, formatResult } from './process';
 import { drawResult } from './draw';
 import type { TaskResult, TaskType, TaskOptions, ProcessedOutput } from '../types';
+import fs from 'node:fs';
 
 /**
  * ONNX 모델을 로드하고 추론을 실행합니다.
