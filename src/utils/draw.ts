@@ -1,22 +1,39 @@
 import sharp from 'sharp'
 import { Buffer } from 'node:buffer'
+
+interface DrawOptions {
+  labels: string[]
+  taskType: 'detection' | 'classification'
+}
+
+interface ClassificationPrediction {
+  label: string
+  confidence: number
+}
+
 /**
  * 이미지에 inference 결과를 그려서 저장합니다.
- * @param {string} imagePath - 입력 이미지의 경로.
- * @param {number[][]} boxes - 바운딩 박스 배열 [x, y, w, h, confidence].
+ * @param {Buffer} imageBuffer - 입력 이미지 버퍼.
+ * @param {number[][] | ClassificationPrediction[]} results - 추론 결과.
  * @param {string} outputPath - 출력 이미지의 경로.
+ * @param {DrawOptions} options - 드로잉 옵션.
  */
-export async function drawResult(imageBuffer, results, outputPath, options) {
+export async function drawResult(
+  imageBuffer: Buffer,
+  results: number[][] | ClassificationPrediction[],
+  outputPath: string,
+  options: DrawOptions
+): Promise<void> {
   const { labels, taskType } = options
   const image = sharp(imageBuffer)
   const metadata = await image.metadata()
-  const { width, height } = metadata
+  const { width = 0, height = 0 } = metadata
 
-  let svgBuffer
+  let svgBuffer: Buffer
   if (taskType === 'detection') {
-    svgBuffer = drawDetection(results, width, height, labels)
+    svgBuffer = drawDetection(results as number[][], width, height, labels)
   } else {
-    svgBuffer = drawClassification(results, width, height)
+    svgBuffer = drawClassification(results as ClassificationPrediction[], width, height)
   }
 
   await image
@@ -24,15 +41,20 @@ export async function drawResult(imageBuffer, results, outputPath, options) {
     .toFile(outputPath)
 }
 
-
 /**
  * 바운딩 박스를 SVG 오버레이로 그립니다.
  * @param {number[][]} boxes 바운딩 박스 배열 [x, y, w, h, confidence].
  * @param {number} imageWidth 이미지의 너비.
  * @param {number} imageHeight 이미지의 높이.
+ * @param {string[]} labels 레이블 배열.
  * @returns {Buffer} SVG 이미지 데이터 버퍼.
  */
-function drawDetection(boxes, imageWidth, imageHeight, labels) {
+function drawDetection(
+  boxes: number[][],
+  imageWidth: number,
+  imageHeight: number,
+  labels: string[]
+): Buffer {
   const colorPalette = generateColorPalette(labels.length)
   
   const svgRectangles = boxes
@@ -96,8 +118,8 @@ function drawDetection(boxes, imageWidth, imageHeight, labels) {
  * @param {number} count 색상 팔레트의 색상 개수
  * @returns {string[]} 색상 팔레트 배열
  */
-function generateColorPalette(count) {
-  const palette = []
+function generateColorPalette(count: number): string[] {
+  const palette: string[] = []
   for (let i = 0; i < count; i++) {
     const hue = (i * 137.508) % 360
     palette.push(`hsl(${hue}, 80%, 55%)`)
@@ -107,16 +129,16 @@ function generateColorPalette(count) {
 
 /**
  * 이미지 분류 결과를 SVG 오버레이로 그립니다.
- * @param {Object[]} predictions 분류 결과 배열
+ * @param {ClassificationPrediction[]} predictions 분류 결과 배열
  * @param {number} imageWidth 이미지의 너비
  * @param {number} imageHeight 이미지의 높이
  * @returns {Buffer} SVG 이미지 데이터 버퍼
  */
 function drawClassification(
-  predictions,
-  imageWidth,
-  imageHeight,
-) {
+  predictions: ClassificationPrediction[],
+  imageWidth: number,
+  imageHeight: number,
+): Buffer {
   const svgContent = `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
       <rect x="10" y="10" width="320" height="${70 + predictions.length * 50}" rx="15" ry="15"
@@ -146,4 +168,4 @@ function drawClassification(
     </svg>
   `
   return Buffer.from(svgContent)
-}
+} 

@@ -23,8 +23,8 @@ jobs:
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           NPM_VERSION=$(npm view . version 2>/dev/null || echo "0.0.0")
-          if [ "v$PACKAGE_VERSION" != "${{ github.ref_name }}" ]; then
-            echo "Package version ($PACKAGE_VERSION) does not match tag (${{ github.ref_name }})"
+          if [ "$PACKAGE_VERSION" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "Package version ($PACKAGE_VERSION) does not match tag ($GITHUB_REF_NAME)"
             exit 1
           fi
           if [ "$PACKAGE_VERSION" = "$NPM_VERSION" ]; then
