@@ -185,14 +185,34 @@ export function postprocess(output: Tensor, options: ProcessOptions) {
         }
         
         if (shouldMerge && batch > 1) {
-          // Average embeddings
+          // Calculate L2 norms of original embeddings
+          const originalNorms = results.map(emb => 
+            Math.sqrt(emb.reduce((sum, val) => sum + val * val, 0))
+          );
+          
+          // L2 normalize each embedding
+          const normalizedEmbs = results.map(emb => {
+            const norm = Math.sqrt(emb.reduce((sum, val) => sum + val * val, 0));
+            return emb.map(val => val / norm);
+          });
+          
+          // Average the normalized embeddings
           const mergedEmbedding = new Array(results[0].length).fill(0);
-          for (const result of results) {
-            for (let i = 0; i < result.length; i++) {
-              mergedEmbedding[i] += result[i] / batch;
+          for (const emb of normalizedEmbs) {
+            for (let i = 0; i < emb.length; i++) {
+              mergedEmbedding[i] += emb[i] / batch;
             }
           }
-          return [mergedEmbedding];
+          
+          // L2 normalize the merged embedding
+          const mergedNorm = Math.sqrt(mergedEmbedding.reduce((sum, val) => sum + val * val, 0));
+          const normalizedMerged = mergedEmbedding.map(val => val / mergedNorm);
+          
+          // Scale by mean of original norms
+          const meanNorm = originalNorms.reduce((sum, norm) => sum + norm, 0) / batch;
+          const finalEmbedding = normalizedMerged.map(val => val * meanNorm);
+          
+          return [finalEmbedding];
         }
       }
       break;
