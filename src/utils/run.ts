@@ -1,7 +1,7 @@
 import { InferenceSession, Tensor } from 'onnxruntime-node';
 import { preprocess, postprocess, formatResult } from './process';
 import { drawResult } from './draw';
-import type { TaskResult, TaskType, TaskOptions } from '../types';
+import type { TaskResult, TaskType, TaskOptions, ProcessedOutput } from '../types';
 
 /**
  * ONNX 모델을 로드하고 추론을 실행합니다.
@@ -56,6 +56,7 @@ export async function runTask(
     const { inputTensor, originalSizes } = await preprocess(
       imageBuffers,
       targetSize,
+      taskType
     );
     const batch = imageBuffers.length;
     const output = await runInference(modelPath, inputTensor, batch, targetSize);
@@ -72,15 +73,27 @@ export async function runTask(
 
     const results = await Promise.all(
       processedOutputs.map(async (processedOutput, bat) => {
-        if (!headless) {
+        if (!headless && taskType !== 'embedding') {
+          const drawOutput = taskType === 'detection' 
+            ? processedOutput as number[][] 
+            : processedOutput as { label: string; confidence: number; }[];
           await drawResult(
             imageBuffers[bat],
-            processedOutput,
-            `./output/${bat + 1}.png`,
+            drawOutput,
+            `./output/${taskType}/${bat + 1}.png`,
             { labels, taskType: taskType as 'detection' | 'classification' },
           );
         }
-        return formatResult(processedOutput, labels, taskType);
+        const formattedOutput = taskType === 'embedding' 
+          ? processedOutput as number[][]
+          : taskType === 'detection'
+            ? { 
+                boxes: (processedOutput as number[][]).map(([x, y, w, h]) => [x, y, w, h] as [number, number, number, number]),
+                scores: (processedOutput as number[][]).map(box => box[4]),
+                labels: (processedOutput as number[][]).map(box => box[5])
+              }
+            : { label: 0, confidence: 0 };
+        return formatResult(formattedOutput, labels, taskType);
       })
     );
 
