@@ -18,7 +18,33 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
-      - run: npm test
+      - name: Create directories
+        run: |
+          mkdir -p models
+          mkdir -p output
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: ${{ runner.os }}-models-${{ hashFiles('test.spec.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-models-
+      - run: npm run coverage
+        env:
+          CI: true
+          TEST_IMAGES: ${{ secrets.TEST_IMAGES }}
+          DETECTION_MODEL_URL: ${{ vars.DETECTION_MODEL_URL }}
+          CLASSIFICATION_MODEL_URL: ${{ vars.CLASSIFICATION_MODEL_URL }}
+          EMBEDDING_MODEL_URL: ${{ vars.EMBEDDING_MODEL_URL }}
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./coverage/
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+          verbose: true
 
   version-check:
     needs: test

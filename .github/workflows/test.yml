@@ -45,22 +45,10 @@ jobs:
           CLASSIFICATION_MODEL_URL: ${{ vars.CLASSIFICATION_MODEL_URL }}
           EMBEDDING_MODEL_URL: ${{ vars.EMBEDDING_MODEL_URL }}
           
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ./coverage/
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: true
-          verbose: true
-
       - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-output
-          path: |
-            output/*.png
-            coverage/
+          path: output/*.png
           if-no-files-found: ignore
