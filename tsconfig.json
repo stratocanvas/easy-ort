@@ -18,6 +18,10 @@
     "esm": true,
     "experimentalSpecifierResolution": "node"
   },
-  "include": ["src/**/*", "test.ts"],
+  "include": [
+    "src/**/*",
+    "test.spec.ts",
+    "vitest.config.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 } 

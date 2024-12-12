@@ -5,36 +5,58 @@ name: Node.js Package
 
 on:
   push:
-    tags:
-      - 'v*'
     branches:
       - main
 
 jobs:
-  version-check:
-    if: startsWith(github.ref, 'refs/tags/v')
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check version
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+
+  version-check:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check version change
+        id: check
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          NPM_VERSION=$(npm view . version 2>/dev/null || echo "0.0.0")
-          if [ "$PACKAGE_VERSION" != "${GITHUB_REF_NAME#v}" ]; then
-            echo "Package version ($PACKAGE_VERSION) does not match tag ($GITHUB_REF_NAME)"
+          git checkout HEAD^1
+          OLD_VERSION=$(node -p "require('./package.json').version")
+          git checkout HEAD
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "No version change detected"
             exit 1
           fi
-          if [ "$PACKAGE_VERSION" = "$NPM_VERSION" ]; then
-            echo "Version $PACKAGE_VERSION already exists on npm"
+          
+          # Check if tag exists for this version
+          if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+            echo "Tag v$NEW_VERSION already exists"
+            exit 1
+          fi
+          
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          NPM_VERSION=$(npm view . version 2>/dev/null || echo "0.0.0")
+          if [ "$NEW_VERSION" = "$NPM_VERSION" ]; then
+            echo "Version $NEW_VERSION already exists on npm"
             exit 1
           fi
 
   release:
     needs: version-check
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -46,15 +68,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          tag_name: v${{ needs.version-check.outputs.version }}
+          release_name: Release v${{ needs.version-check.outputs.version }}
           draft: false
           prerelease: false
           body_path: CHANGELOG.md
 
   publish:
     needs: release
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -24,13 +24,13 @@ import EasyORT from '@stratocanvas/easy-ort'
 
 const result = await new EasyORT()
   .detect(['person', 'car'])
+  .in(imageBuffers)
+  .using('./model.onnx')
   .withOptions({
     confidenceThreshold: 0.3,
     iouThreshold: 0.45,
     targetSize: [640, 640]
   })
-  .in(imageBuffers)
-  .using('./model.onnx')
   .andDraw()
   .now()
 
@@ -60,12 +60,12 @@ const result = await new EasyORT()
 ```javascript
 const result = await new EasyORT()
   .classify(['cat', 'dog', 'bird'])
+  .in(imageBuffers)
+  .using('./classifier.onnx')
   .withOptions({
     confidenceThreshold: 0.2,
     targetSize: [224, 224]
   })
-  .in(imageBuffers)
-  .using('./classifier.onnx')
   .andDraw()
   .now()
 
@@ -91,9 +91,9 @@ const result = await new EasyORT()
 ```javascript
 const result = await new EasyORT()
   .createEmbeddingsFor('text')
-  .withOptions({ dimension: 768 })
   .in(['sample text', 'another text'])
   .using('./text_model.onnx')
+  .withOptions({ dimension: 768 })
   .andNormalize()
   .now()
 
@@ -112,12 +112,12 @@ const result = await new EasyORT()
 ```javascript
 const result = await new EasyORT()
   .createEmbeddingsFor('vision')
+  .in(imageBuffers)
+  .using('./vision_model.onnx')
   .withOptions({
     dimension: 768,
     targetSize: [384, 384]
   })
-  .in(imageBuffers)
-  .using('./vision_model.onnx')
   .andNormalize()
   .now()
 
@@ -160,9 +160,9 @@ async function loadImagesAsBuffers(directoryPath: string): Promise<Buffer[]> {
 const imageBuffers = await loadImagesAsBuffers('./images')
 const result = await new EasyORT()
   .detect(['person', 'car'])
-  .withOptions({ /* ... */ })
   .in(imageBuffers)  // Pass single Buffer or Buffer[] for batch processing
   .using('./model.onnx')
+  .withOptions({ /* ... */ })
   .now()
 
 // Result will be an array matching the input batch size
@@ -173,9 +173,9 @@ The same batch processing works for text inputs as well:
 ```typescript
 const result = await new EasyORT()
   .createEmbeddingsFor('text')
-  .withOptions({ dimension: 768 })
   .in(['first text', 'second text', 'third text'])  // Single string or string[]
   .using('./text_model.onnx')
+  .withOptions({ dimension: 768 })
   .now()
 ```
 
