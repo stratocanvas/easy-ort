@@ -117,7 +117,7 @@ describe(
 
 					// 파일 생성 확인
 					for (let i = 0; i < imageBuffers.length; i++) {
-						const outputPath = path.join(outputDir, `${i + 1}.png`);
+						const outputPath = path.join(outputDir, 'detection', `${i + 1}.png`);
 						const exists = existsSync(outputPath);
 						expect(exists, `File ${outputPath} should exist`).toBe(true);
 					}
@@ -175,7 +175,7 @@ describe(
 
 				beforeAll(async () => {
 					modelPath = await downloadModel(MODEL_URL, "classification.onnx");
-					outputDir = await ensureOutputDir();
+					outputDir = await ensureOutputDir(); 
 				});
 
 				it("should download classification model", async () => {
@@ -183,14 +183,15 @@ describe(
 				});
 
 				it("should classify a single image without drawing", async () => {
-					const imageBuffer = await downloadImage(testImages[0]);
+					const imageBuffer = await downloadImage(testImages[0]); 
 
 					const result = await model
 						.classify(["general", "sensitive", "questionable", "explicit"])
 						.in([imageBuffer])
 						.using(modelPath)
 						.withOptions({
-							confidenceThreshold: 0.2,
+							confidenceThreshold: 0.3,
+							iouThreshold: 0.5,
 							targetSize: [384, 384],
 						})
 						.now();
@@ -225,7 +226,7 @@ describe(
 
 					// 파일 생성 확인
 					for (let i = 0; i < imageBuffers.length; i++) {
-						const outputPath = path.join(outputDir, `${i + 1}.png`);
+						const outputPath = path.join(outputDir, 'classification', `${i + 1}.png`);
 						const exists = existsSync(outputPath);
 						expect(exists, `File ${outputPath} should exist`).toBe(true);
 					}
