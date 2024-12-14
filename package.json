@@ -1,6 +1,6 @@
 {
 	"name": "@stratocanvas/easy-ort",
-	"version": "1.1.10",
+	"version": "1.2.0",
 	"description": "Easy-to-use ONNX Runtime wrapper for common ML tasks",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -18,13 +18,13 @@
 		"README.md"
 	],
 	"scripts": {
-    "build": "tsup --minify --dts",
+		"build": "tsup --minify --dts",
 		"test": "vitest",
-    "test:watch": "vitest test.spec.ts --watch",
-    "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build"
-  },
+		"test:watch": "vitest test.spec.ts --watch",
+		"test:ui": "vitest --ui",
+		"coverage": "vitest run --coverage",
+		"prepublishOnly": "npm run build"
+	},
 	"author": "Stratocanvas",
 	"keywords": [
 		"ONNX",
@@ -33,21 +33,34 @@
 	],
 	"license": "MIT",
 	"dependencies": {
-		"onnxruntime-node": "^1.20.1",
 		"sharp": "^0.33.5"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.2",
 		"@vitest/coverage-v8": "^2.1.8",
 		"@vitest/ui": "^2.1.8",
+		"axios": "^1.7.9",
 		"dotenv": "^16.4.7",
+		"onnxruntime-node": "^1.20.1",
+		"onnxruntime-web": "^1.20.1",
 		"tsup": "^8.3.5",
 		"tsx": "^4.19.2",
 		"typescript": "^5.7.2",
-		"vitest": "^2.1.8",
-		"axios": "^1.7.9"
+		"vitest": "^2.1.8"
 	},
 	"publishConfig": {
 		"access": "public"
+	},
+	"peerDependencies": {
+		"onnxruntime-node": "^1.20.1",
+		"onnxruntime-web": "^1.20.1"
+	},
+	"peerDependenciesMeta": {
+		"onnxruntime-node": {
+			"optional": true
+		},
+		"onnxruntime-web": {
+			"optional": true
+		}
 	}
 }

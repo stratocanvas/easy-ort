@@ -14,7 +14,28 @@ A lightweight and intuitive wrapper for ONNX Runtime in Node.js. Supports object
 
 ```bash
 npm i @stratocanvas/easy-ort
+
+# Install one of the following runtimes:
+npm i onnxruntime-node   # For Node.js
+# OR
+npm i onnxruntime-web    # For browser
 ```
+
+## Runtime Options
+
+easy-ort supports both Node.js and Web environments through different ONNX Runtime implementations:
+
+```javascript
+// For Node.js
+const nodeOrt = new EasyORT('node')
+
+// For Web
+const webOrt = new EasyORT('web')
+```
+
+Choose the appropriate runtime based on your environment:
+- Use `'node'` for Node.js applications (default)
+- Use `'web'` for browser applications
 
 ## Quick Examples
 
@@ -22,7 +43,7 @@ npm i @stratocanvas/easy-ort
 ```javascript
 import EasyORT from '@stratocanvas/easy-ort'
 
-const result = await new EasyORT()
+const result = await new EasyORT('node')
   .detect(['person', 'car'])
   .in(imageBuffers)
   .using('./model.onnx')
@@ -58,7 +79,7 @@ const result = await new EasyORT()
 
 ### Image Classification
 ```javascript
-const result = await new EasyORT()
+const result = await new EasyORT('node')
   .classify(['cat', 'dog', 'bird'])
   .in(imageBuffers)
   .using('./classifier.onnx')
@@ -89,7 +110,7 @@ const result = await new EasyORT()
 
 ### Text Embeddings
 ```javascript
-const result = await new EasyORT()
+const result = await new EasyORT('node')
   .createEmbeddingsFor('text')
   .in(['sample text', 'another text'])
   .using('./text_model.onnx')
@@ -110,8 +131,8 @@ const result = await new EasyORT()
 
 ### Vision Embeddings
 ```javascript
-const result = await new EasyORT()
-  .createEmbeddingsFor('vision')
+const result = await new EasyORT('node')
+  .createEmbeddingsFor('image')
   .in(imageBuffers)
   .using('./vision_model.onnx')
   .withOptions({
@@ -171,7 +192,7 @@ const result = await new EasyORT()
 The same batch processing works for text inputs as well:
 
 ```typescript
-const result = await new EasyORT()
+const result = await new EasyORT('node')
   .createEmbeddingsFor('text')
   .in(['first text', 'second text', 'third text'])  // Single string or string[]
   .using('./text_model.onnx')
@@ -231,7 +252,8 @@ const result = await new EasyORT()
   - Embedding: [batch_size, dimension]
 
 ### System
-- Node.js environment
+- Node.js or Web environment
+- Appropriate ONNX Runtime installed (`onnxruntime-node` or `onnxruntime-web`)
 - Write access to `./output/` for visualization
 
 ## License
