@@ -1,5 +1,6 @@
-import { InferenceSession, Tensor } from "onnxruntime-node";
-import { preprocess, postprocess, formatResult } from "./utils/process";
+import { preprocess } from "./utils/preprocessing/imagePreprocess";
+import { postprocess } from "./utils/process";
+import { formatResult } from "./utils/formatters/resultFormatter";
 import { drawResult } from "./utils/draw";
 import type {
 	TaskResult,
@@ -12,6 +13,9 @@ import path from 'node:path';
 import type { RuntimeProvider, RuntimeType, RuntimeSession, RuntimeTensor } from "./types/runtime";
 import { NodeRuntimeProvider } from "./runtime/node-provider";
 import { WebRuntimeProvider } from "./runtime/web-provider";
+import type { Tensor } from "onnxruntime-node";
+
+type FeedsType = { [key: string]: RuntimeTensor };
 
 class TaskBuilder {
 	private inputs: Buffer[] | string[] = [];
@@ -135,20 +139,20 @@ class TaskBuilder {
 			const inputName = session.inputNames[0];
 			const outputName = session.outputNames[0];
 
-			const feeds = {
-				[inputName]: new Tensor(
-					this.inputType === "image" ? "float32" : "int64",
-					inputTensor,
-					this.inputType === "image"
-						? [batch, 3, ...(this.options.targetSize || [384, 384])]
-						: [batch, inputTensor.length / batch],
-				),
-			};
+			const tensor = this.easyOrt.createTensor(
+				this.inputType === "image" ? "float32" : "int64",
+				inputTensor,
+				this.inputType === "image"
+					? [batch, 3, ...(this.options.targetSize || [384, 384])]
+					: [batch, inputTensor.length / batch],
+			);
 
-			const results = await session.run(feeds);
+			const feeds = { [inputName]: tensor };
+			const results = await this.easyOrt.run(session, feeds);
+
 			const output = results[outputName];
 
-			const processedOutputs = postprocess(output, {
+			const processedOutputs = postprocess(output as Tensor, {
 				confidenceThreshold: this.options.confidenceThreshold || 0.2,
 				iouThreshold: this.options.iouThreshold || 0.45,
 				targetSize: this.options.targetSize || [384, 384],
@@ -190,9 +194,9 @@ class TaskBuilder {
 			);
 		} catch (error: unknown) {
 			if (error instanceof Error) {
-				throw new Error(error.message);
+				throw new Error(`Failed to load model: ${error.message}`);
 			}
-			throw new Error("An unknown error occurred");
+			throw new Error("An unknown error occurred while loading the model");
 		}
 	}
 }
