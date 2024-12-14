@@ -8,6 +8,7 @@ import type {
   ProcessedOutput
 } from "./types";
 import fs from 'node:fs';
+import path from 'node:path';
 import type { RuntimeProvider, RuntimeType, RuntimeSession, RuntimeTensor } from "./types/runtime";
 import { NodeRuntimeProvider } from "./runtime/node-provider";
 import { WebRuntimeProvider } from "./runtime/web-provider";
@@ -21,10 +22,12 @@ class TaskBuilder {
 	private shouldMerge = false;
 	private taskType: TaskType;
 	private inputType: "image" | "text";
+	private easyOrt: EasyORT;
 
-	constructor(taskType: TaskType, inputType: "image" | "text") {
+	constructor(taskType: TaskType, inputType: "image" | "text", easyOrt: EasyORT) {
 		this.taskType = taskType;
 		this.inputType = inputType;
+		this.easyOrt = easyOrt;
 	}
 
 	withOptions(options: TaskOptions) {
@@ -57,6 +60,38 @@ class TaskBuilder {
 		return this;
 	}
 
+	private resolvePath(modelPath: string): string {
+		if (path.isAbsolute(modelPath)) {
+			return modelPath;
+		}
+
+		const commonDirs = [
+			'public',
+			'static',
+			'assets',
+			'src/assets',
+			'app/assets',
+			'static/assets',
+			''  // project root as fallback
+		];
+
+		for (const dir of commonDirs) {
+			const tryPath = dir 
+				? path.join(process.cwd(), dir, modelPath)
+				: path.join(process.cwd(), modelPath);
+			
+			if (fs.existsSync(tryPath)) {
+				return tryPath;
+			}
+		}
+
+		return modelPath;
+	}
+
+	private async createSession(modelPath: string) {
+		return await this.easyOrt.createSession(modelPath);
+	}
+
 	async now(): Promise<TaskResult[]> {
 		if (!this.inputs.length) {
 			throw new Error("No inputs provided. Call in() first.");
@@ -66,6 +101,8 @@ class TaskBuilder {
 		}
 
 		try {
+			const resolvedModelPath = this.resolvePath(this.modelPath);
+			
 			let inputTensor: Float32Array | BigInt64Array;
 			let originalSizes: [number, number][] = [];
 			const batch = this.inputs.length;
@@ -94,7 +131,7 @@ class TaskBuilder {
 				});
 			}
 
-			const session = await InferenceSession.create(this.modelPath);
+			const session = await this.createSession(resolvedModelPath);
 			const inputName = session.inputNames[0];
 			const outputName = session.outputNames[0];
 
