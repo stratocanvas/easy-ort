@@ -55,9 +55,8 @@ async function ensureOutputDir() {
 describe(
 	"EasyORT Tests",
 	() => {
-		const model = new EasyORT();
+		const model = new EasyORT('node');
 		const testImages = process.env.TEST_IMAGES?.split(",") ?? [];
-
 		describe(
 			"Object Detection",
 			() => {
