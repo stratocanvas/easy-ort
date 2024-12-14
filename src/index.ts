@@ -8,6 +8,9 @@ import type {
   ProcessedOutput
 } from "./types";
 import fs from 'node:fs';
+import type { RuntimeProvider, RuntimeType, RuntimeSession, RuntimeTensor } from "./types/runtime";
+import { NodeRuntimeProvider } from "./runtime/node-provider";
+import { WebRuntimeProvider } from "./runtime/web-provider";
 
 class TaskBuilder {
 	private inputs: Buffer[] | string[] = [];
@@ -158,15 +161,41 @@ class TaskBuilder {
 }
 
 export default class EasyORT {
+	private provider: RuntimeProvider;
+	private runtime: 'node' | 'web';
+
+	public getRuntime() {
+		return this.runtime;
+	}
+
+	constructor(runtime: 'node' | 'web' = 'node') {
+		this.runtime = runtime;
+		this.provider = runtime === 'node' 
+			? new NodeRuntimeProvider()
+			: new WebRuntimeProvider();
+	}
+
+	public async createSession(modelPath: string): Promise<RuntimeSession> {
+		return await this.provider.createSession(modelPath);
+	}
+
+	public createTensor(type: "float32" | "int64", data: Float32Array | BigInt64Array, dims: number[]): RuntimeTensor {
+		return this.provider.createTensor(type, data, dims);
+	}
+
 	detect(labels: string[]) {
-		return new TaskBuilder("detection", "image").withOptions({ labels });
+		return new TaskBuilder("detection", "image", this).withOptions({ labels });
 	}
 
 	classify(labels: string[]) {
-		return new TaskBuilder("classification", "image").withOptions({ labels });
+		return new TaskBuilder("classification", "image", this).withOptions({ labels });
 	}
 
 	createEmbeddingsFor(type: "image" | "text") {
-		return new TaskBuilder("embedding", type);
+		return new TaskBuilder("embedding", type, this);
+	}
+
+	public async run(session: RuntimeSession, feeds: FeedsType): Promise<{ [key: string]: RuntimeTensor }> {
+		return await this.provider.run(session, feeds);
 	}
 }
