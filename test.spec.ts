@@ -11,6 +11,7 @@ import type {
 } from "./src/types/results";
 import { existsSync } from "node:fs";
 import dotenv from "dotenv";
+import { isDetectionResult } from "./src/types/results";
 dotenv.config();
 
 const TEST_TIMEOUT = 60000; // 60초
@@ -88,7 +89,7 @@ describe(
 						.now();
 
 					expect(result).toHaveLength(1);
-					expect((result as DetectionResult[])[0].detections).toBeDefined();
+					expect(result[0].detections).toBeDefined();
 				});
 
 				it("should detect objects and save drawn results", async () => {
@@ -142,7 +143,7 @@ describe(
 					expect(result).toBeDefined();
 					expect(Array.isArray(result)).toBe(true);
 
-					for (const detection of result as DetectionResult[]) {
+					for (const detection of result) {
 						expect(detection).toHaveProperty("detections");
 						expect(Array.isArray(detection.detections)).toBe(true);
 
@@ -196,7 +197,7 @@ describe(
 						.now();
 
 					expect(result).toHaveLength(1);
-					const classification = (result as ClassificationResult[])[0];
+					const classification = result[0];
 					expect(classification.classifications).toBeDefined();
 					expect(classification.classifications.length).toBeGreaterThan(0);
 				});
@@ -249,7 +250,7 @@ describe(
 					expect(result).toBeDefined();
 					expect(Array.isArray(result)).toBe(true);
 
-					for (const classification of result as ClassificationResult[]) {
+					for (const classification of result) {
 						expect(classification).toHaveProperty("classifications");
 						expect(Array.isArray(classification.classifications)).toBe(true);
 
@@ -284,7 +285,7 @@ describe(
 
 			it("should create embeddings for images", async () => {
 				const imageBuffers = await Promise.all(
-					testImages.map((url) => downloadImage(url)),
+					testImages.map((url) => downloadImage(url))
 				);
 
 				const result = await model
@@ -298,10 +299,18 @@ describe(
 					.andNormalize()
 					.now();
 
+				console.log('Embedding result structure:', result);
 				expect(result).toBeDefined();
 				expect(Array.isArray(result)).toBe(true);
-
-				(result as unknown as EmbeddingResult[]).forEach(validateEmbedding);
+				
+				// 각 이미지의 임베딩 검증
+				for (const embedding of result) {
+					expect(Array.isArray(embedding)).toBe(true);
+					expect(embedding).toHaveLength(768);
+					for (const value of embedding) {
+						expect(typeof value).toBe("number");
+					}
+				}
 			});
 
 			it("should create merged embeddings for images", async () => {
@@ -314,17 +323,17 @@ describe(
 					.in(imageBuffers)
 					.using(modelPath)
 					.withOptions({
-						dimension: 768,
-						targetSize: [384, 384],
-					})
-					.andNormalize()
-					.andMerge()
-					.now();
+							dimension: 768,
+							targetSize: [384, 384],
+						})
+						.andNormalize()
+						.andMerge()
+						.now();
 
 				expect(result).toBeDefined();
 				expect(Array.isArray(result)).toBe(true);
 				expect(result).toHaveLength(1);
-				for (const embedding of result as unknown as EmbeddingResult[]) {
+				for (const embedding of result) {
 					expect(Array.isArray(embedding)).toBe(true);
 					expect(embedding).toHaveLength(768);
 					for (const value of embedding) {
