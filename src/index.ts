@@ -14,10 +14,10 @@ import type { RuntimeProvider, RuntimeType, RuntimeSession, RuntimeTensor } from
 import { NodeRuntimeProvider } from "./runtime/node-provider";
 import { WebRuntimeProvider } from "./runtime/web-provider";
 import type { Tensor } from "onnxruntime-node";
-
+import type { DetectionResult, ClassificationResult, EmbeddingResult } from "./types/results";
 type FeedsType = { [key: string]: RuntimeTensor };
 
-class TaskBuilder {
+class TaskBuilder<T extends TaskResult> {
 	private inputs: Buffer[] | string[] = [];
 	private modelPath = "";
 	private options: TaskOptions = {};
@@ -34,32 +34,32 @@ class TaskBuilder {
 		this.easyOrt = easyOrt;
 	}
 
-	withOptions(options: TaskOptions) {
+	withOptions(options: TaskOptions): TaskBuilder<T> {
 		this.options = { ...this.options, ...options };
 		return this;
 	}
 
-	in(inputs: Buffer[] | string[]) {
+	in(inputs: Buffer[] | string[]): TaskBuilder<T> {
 		this.inputs = inputs;
 		return this;
 	}
 
-	using(modelPath: string) {
+	using(modelPath: string): TaskBuilder<T> {
 		this.modelPath = modelPath;
 		return this;
 	}
 
-	andDraw() {
+	andDraw(): TaskBuilder<T> {
 		this.shouldDraw = true;
 		return this;
 	}
 
-	andNormalize() {
+	andNormalize(): TaskBuilder<T> {
 		this.shouldNormalize = true;
 		return this;
 	}
 
-	andMerge() {
+	andMerge(): TaskBuilder<T> {
 		this.shouldMerge = true;
 		return this;
 	}
@@ -96,7 +96,7 @@ class TaskBuilder {
 		return await this.easyOrt.createSession(modelPath);
 	}
 
-	async now(): Promise<TaskResult[]> {
+	async now(): Promise<T[]> {
 		if (!this.inputs.length) {
 			throw new Error("No inputs provided. Call in() first.");
 		}
@@ -189,8 +189,8 @@ class TaskBuilder {
 				formatResult(
 					output as ProcessedOutput | number[][],
 					this.options.labels || [],
-					this.taskType,
-				),
+					this.taskType
+				) as T
 			);
 		} catch (error: unknown) {
 			if (error instanceof Error) {
@@ -224,16 +224,16 @@ export default class EasyORT {
 		return this.provider.createTensor(type, data, dims);
 	}
 
-	detect(labels: string[]) {
-		return new TaskBuilder("detection", "image", this).withOptions({ labels });
+	detect(labels: string[]): TaskBuilder<DetectionResult> {
+		return new TaskBuilder<DetectionResult>("detection", "image", this).withOptions({ labels });
 	}
 
-	classify(labels: string[]) {
-		return new TaskBuilder("classification", "image", this).withOptions({ labels });
+	classify(labels: string[]): TaskBuilder<ClassificationResult> {
+		return new TaskBuilder<ClassificationResult>("classification", "image", this).withOptions({ labels });
 	}
 
-	createEmbeddingsFor(type: "image" | "text") {
-		return new TaskBuilder("embedding", type, this);
+	createEmbeddingsFor(type: "image" | "text"): TaskBuilder<EmbeddingResult> {
+		return new TaskBuilder<EmbeddingResult>("embedding", type, this);
 	}
 
 	public async run(session: RuntimeSession, feeds: FeedsType): Promise<{ [key: string]: RuntimeTensor }> {

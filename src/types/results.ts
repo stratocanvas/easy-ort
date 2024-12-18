@@ -1,29 +1,23 @@
-export interface DetectionItem {
-    label: string;
-    box: number[];
-    confidence: number;
-    squareness: number;
-}
+export type TaskResult = DetectionResult | ClassificationResult | EmbeddingResult;
 
 export interface DetectionResult {
-    detections: DetectionItem[];
-}
-
-export interface ClassificationItem {
+  detections: {
     label: string;
+    box: [number, number, number, number];
     confidence: number;
+    squareness: number;
+  }[];
 }
 
 export interface ClassificationResult {
-    classifications: ClassificationItem[];
+  classifications: {
+    label: string;
+    confidence: number;
+  }[];
 }
 
-export type EmbeddingResult = number[];
+export type EmbeddingResult = number[][];
 
-// 각 작업별 결과 배열 타입
-export type DetectionResults = DetectionResult[];
-export type ClassificationResults = ClassificationResult[];
-export type EmbeddingResults = EmbeddingResult[];
-
-// Union type for all possible task results
-export type TaskResult = DetectionResults | ClassificationResults | EmbeddingResults; 
+export function isDetectionResult(result: TaskResult): result is DetectionResult {
+  return 'detections' in result;
+}
