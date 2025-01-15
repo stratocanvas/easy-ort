@@ -299,7 +299,6 @@ describe(
 					.andNormalize()
 					.now();
 
-				console.log('Embedding result structure:', result);
 				expect(result).toBeDefined();
 				expect(Array.isArray(result)).toBe(true);
 				
