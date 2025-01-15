@@ -22,18 +22,25 @@ export async function preprocess(
       }
       const scaleX = targetSize[0] / metadata.width
       const scaleY = targetSize[1] / metadata.height
-      processedImage = sharp(imageBuffer)
+      processedImage = sharp(imageBuffer, {
+        failOnError: false,
+        sequentialRead: true
+      })
         .affine([scaleX, 0, 0, scaleY], {
           interpolator: 'bilinear',
           background: { r: 0, g: 0, b: 0, alpha: 1 }
         })
     } else {
-      processedImage = sharp(imageBuffer)
+      processedImage = sharp(imageBuffer, {
+        failOnError: false,
+        sequentialRead: true
+      })
         .resize(targetSize[0], targetSize[1], {
           fit: 'fill',
           kernel: 'lanczos3',
           position: 'center',
-          background: { r: 0, g: 0, b: 0, alpha: 1 }
+          background: { r: 0, g: 0, b: 0, alpha: 1 },
+          fastShrinkOnLoad: true
         })
     }
 
@@ -43,24 +50,19 @@ export async function preprocess(
       .toBuffer({ resolveWithObject: true })
 
     const { width, height, channels } = info
-
-    const hwcData = new Float32Array(height * width * channels)
-    for (let i = 0; i < buffer.length; i++) {
-      hwcData[i] = buffer[i] / 255.0
-    }
-
+    const pixelCount = height * width
     const data = new Float32Array(channels * height * width)
-    for (let h = 0; h < height; h++) {
-      for (let w = 0; w < width; w++) {
-        for (let c = 0; c < channels; c++) {
-          const srcIdx = (h * width + w) * channels + c
-          const dstIdx = c * height * width + h * width + w
-          
-          if (taskType === 'embedding') {
-            data[dstIdx] = (hwcData[srcIdx] - EMBEDDING_MEAN[c]) / EMBEDDING_STD[c]
-          } else {
-            data[dstIdx] = hwcData[srcIdx]
-          }
+
+    for (let i = 0; i < pixelCount; i++) {
+      for (let c = 0; c < channels; c++) {
+        const srcIdx = i * channels + c
+        const dstIdx = c * pixelCount + i
+        const normalizedValue = buffer[srcIdx] / 255.0
+        
+        if (taskType === 'embedding') {
+          data[dstIdx] = (normalizedValue - EMBEDDING_MEAN[c]) / EMBEDDING_STD[c]
+        } else {
+          data[dstIdx] = normalizedValue
         }
       }
     }

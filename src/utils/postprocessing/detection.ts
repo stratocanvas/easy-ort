@@ -10,46 +10,51 @@ export function postprocessDetection(
   numPredictions: number,
   channels: number,
 ) {
-  const predictions = []
+  const boxes: [number, number, number, number, number, number][] = [];
+  const [targetWidth, targetHeight] = targetSize;
+  const [originalHeight, originalWidth] = originalSize;
 
   for (let i = 0; i < numPredictions; i++) {
-    const pred = []
-    for (let c = 0; c < channels; c++) {
-      const index = i + c * numPredictions
-      pred.push(outputData[index])
+    const x_center = outputData[i];
+    const y_center = outputData[i + numPredictions];
+    const width = outputData[i + 2 * numPredictions];
+    const height = outputData[i + 3 * numPredictions];
+
+    let maxConfidence = Number.NEGATIVE_INFINITY;
+    let classIndex = -1;
+
+    // Find max confidence and class index directly
+    for (let c = 4; c < channels; c++) {
+      const confidence = outputData[i + c * numPredictions];
+      if (confidence > maxConfidence) {
+        maxConfidence = confidence;
+        classIndex = c - 4;
+      }
     }
-    predictions.push(pred)
-  }
-
-  let boxes: [number, number, number, number, number, number][] = []
-
-  for (const prediction of predictions) {
-    const [x_center, y_center, width, height, ...confidences] = prediction
-    const maxConfidence = Math.max(...confidences)
-    const classIndex = confidences.indexOf(maxConfidence)
 
     if (maxConfidence > confThreshold) {
       boxes.push([
-        (x_center - width / 2) / targetSize[0],
-        (y_center - height / 2) / targetSize[1],
-        width / targetSize[0],
-        height / targetSize[1],
+        (x_center - width / 2) / targetWidth,
+        (y_center - height / 2) / targetHeight,
+        width / targetWidth,
+        height / targetHeight,
         maxConfidence,
         classIndex
-      ])
+      ]);
     }
   }
 
-  boxes = NMS(boxes, iouThreshold) as [number, number, number, number, number, number][]
+  const nmsBoxes = NMS(boxes, iouThreshold) as [number, number, number, number, number, number][];
 
-  return boxes.map((box) => {
-    const [x, y, w, h, conf, classIndex] = box
-    const rescaledX = Math.round(x * originalSize[1])
-    const rescaledY = Math.round(y * originalSize[0])
-    const rescaledW = Math.round(w * originalSize[1])
-    const rescaledH = Math.round(h * originalSize[0])
-    return [rescaledX, rescaledY, rescaledW, rescaledH, conf, classIndex]
-  })
+  // Optimize the rescaling loop
+  return nmsBoxes.map(([x, y, w, h, conf, classIndex]) => [
+    Math.round(x * originalWidth),
+    Math.round(y * originalHeight),
+    Math.round(w * originalWidth),
+    Math.round(h * originalHeight),
+    conf,
+    classIndex
+  ]);
 }
 
 export function processDetectionOutput(

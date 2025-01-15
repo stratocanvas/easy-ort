@@ -27,7 +27,10 @@ class TaskBuilder<T extends TaskResult> {
 	private taskType: TaskType;
 	private inputType: "image" | "text";
 	private easyOrt: EasyORT;
+	private static sessionCache = new Map<string, RuntimeSession>();
+	private static MAX_BATCH_SIZE = 32;
 
+	
 	constructor(taskType: TaskType, inputType: "image" | "text", easyOrt: EasyORT) {
 		this.taskType = taskType;
 		this.inputType = inputType;
@@ -93,7 +96,103 @@ class TaskBuilder<T extends TaskResult> {
 	}
 
 	private async createSession(modelPath: string) {
-		return await this.easyOrt.createSession(modelPath);
+		if (TaskBuilder.sessionCache.has(modelPath)) {
+			return TaskBuilder.sessionCache.get(modelPath) || await this.easyOrt.createSession(modelPath);
+		}
+		const session = await this.easyOrt.createSession(modelPath);
+		TaskBuilder.sessionCache.set(modelPath, session);
+		return session;
+	}
+
+	private async processBatch(
+		inputs: Buffer[] | string[],
+		session: RuntimeSession,
+		startIdx: number,
+		batchSize: number
+	): Promise<T[]> {
+		const batchInputs = inputs.slice(startIdx, startIdx + batchSize);
+		let inputTensor: Float32Array | BigInt64Array;
+		let originalSizes: [number, number][] = [];
+
+		if (this.inputType === "image") {
+			const preprocessed = await preprocess(
+				batchInputs as Buffer[],
+				this.options.targetSize || [384, 384],
+				this.taskType
+			);
+			inputTensor = preprocessed.inputTensor;
+			originalSizes = preprocessed.originalSizes;
+		} else {
+			// Text input processing
+			const maxLength = Math.max(
+				...(this.inputs as string[]).map((text) => text.length),
+			);
+			inputTensor = new BigInt64Array(batchSize * maxLength);
+
+			// Simple tokenization (you might want to use a proper tokenizer)
+			(this.inputs as string[]).forEach((text, i) => {
+				const chars = Array.from(text);
+				chars.forEach((char, j) => {
+					inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
+				});
+			});
+		}
+
+		const inputName = session.inputNames[0];
+		const outputName = session.outputNames[0];
+
+		const tensor = this.easyOrt.createTensor(
+			this.inputType === "image" ? "float32" : "int64",
+			inputTensor,
+			this.inputType === "image"
+				? [batchSize, 3, ...(this.options.targetSize || [384, 384])]
+				: [batchSize, inputTensor.length / batchSize]
+		);
+
+		const feeds = { [inputName]: tensor };
+		const results = await this.easyOrt.run(session, feeds);
+		const output = results[outputName];
+
+		const processedOutputs = postprocess(output as Tensor, {
+			confidenceThreshold: this.options.confidenceThreshold || 0.2,
+			iouThreshold: this.options.iouThreshold || 0.45,
+			targetSize: this.options.targetSize || [384, 384],
+			originalSizes,
+			labels: this.options.labels || [],
+			taskType: this.taskType,
+			batch: batchSize,
+			shouldNormalize: this.shouldNormalize,
+			shouldMerge: this.shouldMerge, 
+		});
+
+		if (this.shouldDraw && this.taskType !== "embedding") {
+			await Promise.all(
+				processedOutputs.map(async (processedOutput, idx) => {
+					const outputPath = `./output/${this.taskType}/${startIdx + idx + 1}.png`;
+					const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
+					if (!fs.existsSync(dir)) {
+						fs.mkdirSync(dir, { recursive: true });
+					}
+					await drawResult(
+						batchInputs[idx] as Buffer,
+						processedOutput as number[][] | { label: string; confidence: number }[],
+						outputPath,
+						{
+							labels: this.options.labels || [],
+							taskType: this.taskType as "detection" | "classification",
+						}
+					);
+				})
+			);
+		}
+
+		return processedOutputs.map((output) =>
+			formatResult(
+				output as ProcessedOutput | number[][],
+				this.options.labels || [],
+				this.taskType
+			) as T
+		);
 	}
 
 	async now(): Promise<T[]> {
@@ -106,92 +205,19 @@ class TaskBuilder<T extends TaskResult> {
 
 		try {
 			const resolvedModelPath = this.resolvePath(this.modelPath);
-			
-			let inputTensor: Float32Array | BigInt64Array;
-			let originalSizes: [number, number][] = [];
-			const batch = this.inputs.length;
-
-			if (this.inputType === "image") {
-				const preprocessed = await preprocess(
-					this.inputs as Buffer[],
-					this.options.targetSize || [384, 384],
-					this.taskType
-				);
-				inputTensor = preprocessed.inputTensor;
-				originalSizes = preprocessed.originalSizes;
-			} else {
-				// Text input processing
-				const maxLength = Math.max(
-					...(this.inputs as string[]).map((text) => text.length),
-				);
-				inputTensor = new BigInt64Array(batch * maxLength);
-
-				// Simple tokenization (you might want to use a proper tokenizer)
-				(this.inputs as string[]).forEach((text, i) => {
-					const chars = Array.from(text);
-					chars.forEach((char, j) => {
-						inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
-					});
-				});
-			}
-
 			const session = await this.createSession(resolvedModelPath);
-			const inputName = session.inputNames[0];
-			const outputName = session.outputNames[0];
+			
+			const totalInputs = this.inputs.length;
+			const results: T[] = [];
 
-			const tensor = this.easyOrt.createTensor(
-				this.inputType === "image" ? "float32" : "int64",
-				inputTensor,
-				this.inputType === "image"
-					? [batch, 3, ...(this.options.targetSize || [384, 384])]
-					: [batch, inputTensor.length / batch],
-			);
-
-			const feeds = { [inputName]: tensor };
-			const results = await this.easyOrt.run(session, feeds);
-
-			const output = results[outputName];
-
-			const processedOutputs = postprocess(output as Tensor, {
-				confidenceThreshold: this.options.confidenceThreshold || 0.2,
-				iouThreshold: this.options.iouThreshold || 0.45,
-				targetSize: this.options.targetSize || [384, 384],
-				originalSizes,
-				labels: this.options.labels || [],
-				taskType: this.taskType,
-				batch,
-				shouldNormalize: this.shouldNormalize,
-				shouldMerge: this.shouldMerge,
-			});
-
-			if (this.shouldDraw && this.taskType !== "embedding") {
-				await Promise.all(
-					processedOutputs.map(async (processedOutput, bat) => {
-						const outputPath = `./output/${this.taskType}/${bat + 1}.png`;
-						const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
-						if (!fs.existsSync(dir)) {
-							fs.mkdirSync(dir, { recursive: true });
-						}
-						await drawResult(
-							this.inputs[bat] as Buffer,
-							processedOutput as number[][] | { label: string; confidence: number }[],
-							outputPath,
-							{
-								labels: this.options.labels || [],
-								taskType: this.taskType as "detection" | "classification",
-							},
-						);
-					}),
-				);
+			// Process in optimal batch sizes
+			for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+				const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+				const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+				results.push(...batchResults);
 			}
 
-			return processedOutputs.map((output) =>
-				formatResult(
-					output as ProcessedOutput | number[][],
-					this.options.labels || [],
-					this.taskType
-				) as T
-			);
+			return results;
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(`Failed to load model: ${error.message}`);
