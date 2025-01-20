@@ -258,8 +258,8 @@ export default class EasyORT {
 		return new TaskBuilder<ClassificationResult>("classification", "image", this).withOptions({ labels });
 	}
 
-	createEmbeddingsFor(type: "image" | "text"): TaskBuilder<EmbeddingResult> {
-		return new TaskBuilder<EmbeddingResult>("embedding", type, this);
+	createEmbeddingsFor(type: "image" | "text"): TaskBuilder<number[]> {
+		return new TaskBuilder<number[]>("embedding", type, this);
 	}
 
 	public async run(session: RuntimeSession, feeds: FeedsType): Promise<{ [key: string]: RuntimeTensor }> {
