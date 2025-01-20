@@ -149,7 +149,7 @@ const result = await new EasyORT('node')
 ]
 
 // With .andMerge():
-[0.24, -0.08, 0.12, ...]     // Single averaged 768-dimensional vector
+[[0.24, -0.08, 0.12, ...]]     // Single averaged 768-dimensional vector
 */
 ```
 

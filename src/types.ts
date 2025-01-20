@@ -74,4 +74,4 @@ export interface ClassificationResult {
   }>;
 }
 
-export type TaskResult = DetectionResult | ClassificationResult | number[][];
+export type TaskResult = DetectionResult | ClassificationResult | number[][] | number[];
