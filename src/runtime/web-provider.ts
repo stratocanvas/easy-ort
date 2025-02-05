@@ -13,4 +13,8 @@ export class WebRuntimeProvider implements RuntimeProvider {
   async run(session: RuntimeSession, feeds: { [key: string]: RuntimeTensor }): Promise<{ [key: string]: RuntimeTensor }> {
     return await (session as InferenceSession).run(feeds as { [key: string]: Tensor });
   }
+
+  async release(session: RuntimeSession): Promise<void> {
+    await (session as InferenceSession).release();
+  }
 } 
