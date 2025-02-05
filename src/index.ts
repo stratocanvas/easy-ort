@@ -27,7 +27,6 @@ class TaskBuilder<T extends TaskResult> {
 	private taskType: TaskType;
 	private inputType: "image" | "text";
 	private easyOrt: EasyORT;
-	private static sessionCache = new Map<string, RuntimeSession>();
 	private static MAX_BATCH_SIZE = 32;
 
 	
@@ -95,21 +94,8 @@ class TaskBuilder<T extends TaskResult> {
 		return modelPath;
 	}
 
-	public static getSessionCache(): Map<string, RuntimeSession> {
-		return TaskBuilder.sessionCache;
-	}
-
-	public static removeFromSessionCache(modelPath: string): void {
-		TaskBuilder.sessionCache.delete(modelPath);
-	}
-
 	private async createSession(modelPath: string) {
-		if (TaskBuilder.sessionCache.has(modelPath)) {
-			return TaskBuilder.sessionCache.get(modelPath) || await this.easyOrt.createSession(modelPath);
-		}
-		const session = await this.easyOrt.createSession(modelPath);
-		TaskBuilder.sessionCache.set(modelPath, session);
-		return session;
+		return await this.easyOrt.createSession(modelPath);
 	}
 
 	private async processBatch(
@@ -218,14 +204,18 @@ class TaskBuilder<T extends TaskResult> {
 			const totalInputs = this.inputs.length;
 			const results: T[] = [];
 
-			// Process in optimal batch sizes
-			for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
-				const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
-				const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
-				results.push(...batchResults);
+			try {
+				// Process in optimal batch sizes
+				for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+					const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+					const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+					results.push(...batchResults);
+				}
+				return results;
+			} finally {
+				// 작업이 성공하든 실패하든 세션을 해제하지 않음 (캐시된 세션 재사용)
+				// 세션 해제는 releaseSession() 또는 releaseAllSessions()를 통해 명시적으로 수행
 			}
-
-			return results;
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(`Failed to load model: ${error.message}`);
@@ -238,6 +228,7 @@ class TaskBuilder<T extends TaskResult> {
 export default class EasyORT {
 	private provider: RuntimeProvider;
 	private runtime: 'node' | 'web';
+	private sessionCache = new Map<string, RuntimeSession>();
 
 	public getRuntime() {
 		return this.runtime;
@@ -251,7 +242,12 @@ export default class EasyORT {
 	}
 
 	public async createSession(modelPath: string): Promise<RuntimeSession> {
-		return await this.provider.createSession(modelPath);
+		if (this.sessionCache.has(modelPath)) {
+			return this.sessionCache.get(modelPath) as RuntimeSession;
+		}
+		const session = await this.provider.createSession(modelPath);
+		this.sessionCache.set(modelPath, session);
+		return session;
 	}
 
 	public createTensor(type: "float32" | "int64", data: Float32Array | BigInt64Array, dims: number[]): RuntimeTensor {
@@ -260,13 +256,22 @@ export default class EasyORT {
 
 	public async releaseSession(session: RuntimeSession): Promise<void> {
 		await this.provider.release(session);
+		// Find and remove from cache
+		for (const [path, cachedSession] of this.sessionCache.entries()) {
+			if (cachedSession === session) {
+				this.sessionCache.delete(path);
+				break;
+			}
+		}
 	}
 
 	public async releaseAllSessions(): Promise<void> {
-		for (const [modelPath, session] of TaskBuilder.getSessionCache()) {
-			await this.provider.release(session);
-			TaskBuilder.removeFromSessionCache(modelPath);
+		const releasePromises: Promise<void>[] = [];
+		for (const [path, session] of this.sessionCache.entries()) {
+			releasePromises.push(this.provider.release(session));
 		}
+		await Promise.all(releasePromises);
+		this.sessionCache.clear();
 	}
 
 	detect(labels: string[]): TaskBuilder<DetectionResult> {
