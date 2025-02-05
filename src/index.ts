@@ -197,30 +197,30 @@ class TaskBuilder<T extends TaskResult> {
 			throw new Error("No model path provided. Call using() first.");
 		}
 
-		let session: RuntimeSession | undefined;
 		try {
 			const resolvedModelPath = this.resolvePath(this.modelPath);
-			session = await this.createSession(resolvedModelPath);
+			const session = await this.createSession(resolvedModelPath);
 			
 			const totalInputs = this.inputs.length;
 			const results: T[] = [];
 
-			// Process in optimal batch sizes
-			for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
-				const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
-				const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
-				results.push(...batchResults);
+			try {
+				// Process in optimal batch sizes
+				for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+					const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+					const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+					results.push(...batchResults);
+				}
+				return results;
+			} finally {
+				// 작업 완료 후 세션 해제
+				await this.easyOrt.releaseSession(resolvedModelPath);
 			}
-			return results;
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(`Failed to load model: ${error.message}`);
 			}
 			throw new Error("An unknown error occurred while loading the model");
-		} finally {
-			if (session) {
-				await this.easyOrt.releaseSession(session);
-			}
 		}
 	}
 }
@@ -254,20 +254,17 @@ export default class EasyORT {
 		return this.provider.createTensor(type, data, dims);
 	}
 
-	public async releaseSession(session: RuntimeSession): Promise<void> {
-		await this.provider.release(session);
-		// Find and remove from cache
-		for (const [path, cachedSession] of this.sessionCache.entries()) {
-			if (cachedSession === session) {
-				this.sessionCache.delete(path);
-				break;
-			}
+	public async releaseSession(modelPath: string): Promise<void> {
+		const session = this.sessionCache.get(modelPath);
+		if (session) {
+			await this.provider.release(session);
+			this.sessionCache.delete(modelPath);
 		}
 	}
 
 	public async releaseAllSessions(): Promise<void> {
 		const releasePromises: Promise<void>[] = [];
-		for (const [path, session] of this.sessionCache.entries()) {
+		for (const session of this.sessionCache.values()) {
 			releasePromises.push(this.provider.release(session));
 		}
 		await Promise.all(releasePromises);
