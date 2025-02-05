@@ -197,30 +197,30 @@ class TaskBuilder<T extends TaskResult> {
 			throw new Error("No model path provided. Call using() first.");
 		}
 
+		let session: RuntimeSession | undefined;
 		try {
 			const resolvedModelPath = this.resolvePath(this.modelPath);
-			const session = await this.createSession(resolvedModelPath);
+			session = await this.createSession(resolvedModelPath);
 			
 			const totalInputs = this.inputs.length;
 			const results: T[] = [];
 
-			try {
-				// Process in optimal batch sizes
-				for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
-					const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
-					const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
-					results.push(...batchResults);
-				}
-				return results;
-			} finally {
-				// 작업이 성공하든 실패하든 세션을 해제하지 않음 (캐시된 세션 재사용)
-				// 세션 해제는 releaseSession() 또는 releaseAllSessions()를 통해 명시적으로 수행
+			// Process in optimal batch sizes
+			for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+				const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+				const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+				results.push(...batchResults);
 			}
+			return results;
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(`Failed to load model: ${error.message}`);
 			}
 			throw new Error("An unknown error occurred while loading the model");
+		} finally {
+			if (session) {
+				await this.easyOrt.releaseSession(session);
+			}
 		}
 	}
 }
