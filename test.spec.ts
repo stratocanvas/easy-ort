@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, afterAll } from "vitest";
 import axios from "axios";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -49,8 +49,18 @@ async function ensureOutputDir() {
 describe(
 	"EasyORT Tests",
 	() => {
-		const model = new EasyORT('node');
+		let model: EasyORT;
 		const testImages = process.env.TEST_IMAGES?.split(",") ?? [];
+
+		beforeAll(async () => {
+			model = new EasyORT('node');
+		});
+
+		afterEach(async () => {
+			// 각 테스트 후 세션 정리
+			await model.releaseAllSessions();
+		});
+
 		describe(
 			"Object Detection",
 			() => {
@@ -372,6 +382,77 @@ describe(
 				const processingTime = Date.now() - startTime;
 				expect(processingTime).toBeLessThan(30000); // 30초 이내 처리
 				expect(result).toHaveLength(10);
+			});
+		});
+
+		describe("Session Management", () => {
+			const MODEL_URL = process.env.DETECTION_MODEL_URL ?? "";
+			let modelPath: string;
+
+			beforeAll(async () => {
+				modelPath = await downloadModel(MODEL_URL, "detection.onnx");
+			});
+
+			it("should reuse cached session for the same model", async () => {
+				const session1 = await model.createSession(modelPath);
+				const session2 = await model.createSession(modelPath);
+				
+				expect(session1).toBe(session2);
+			});
+
+			it("should properly release individual sessions", async () => {
+				const session = await model.createSession(modelPath);
+				await model.releaseSession(session);
+
+				// 새로운 세션 생성 시 다른 인스턴스여야 함
+				const newSession = await model.createSession(modelPath);
+				expect(newSession).not.toBe(session);
+			});
+
+			it("should handle multiple models and release all sessions", async () => {
+				const detectionSession = await model.createSession(modelPath);
+				
+				const classificationModelPath = await downloadModel(
+					process.env.CLASSIFICATION_MODEL_URL ?? "",
+					"classification.onnx"
+				);
+				const classificationSession = await model.createSession(classificationModelPath);
+
+				expect(detectionSession).not.toBe(classificationSession);
+
+				await model.releaseAllSessions();
+
+				// 새로운 세션들은 이전 세션들과 달라야 함
+				const newDetectionSession = await model.createSession(modelPath);
+				const newClassificationSession = await model.createSession(classificationModelPath);
+
+				expect(newDetectionSession).not.toBe(detectionSession);
+				expect(newClassificationSession).not.toBe(classificationSession);
+			});
+
+			it("should handle session cleanup after task completion", async () => {
+				const imageBuffer = await downloadImage(testImages[0]);
+				
+				// 첫 번째 실행
+				await model.detect(["person"])
+					.in([imageBuffer])
+					.using(modelPath)
+					.now();
+
+				// 동일한 모델로 두 번째 실행 - 세션이 재사용되어야 함
+				await model.detect(["person"])
+					.in([imageBuffer])
+					.using(modelPath)
+					.now();
+
+				// 세션 해제
+				await model.releaseAllSessions();
+
+				// 세션 해제 후 새로운 실행 - 새로운 세션이 생성되어야 함
+				await model.detect(["person"])
+					.in([imageBuffer])
+					.using(modelPath)
+					.now();
 			});
 		});
 	},
