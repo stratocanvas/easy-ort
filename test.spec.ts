@@ -3,15 +3,8 @@ import axios from "axios";
 import fs from "node:fs/promises";
 import path from "node:path";
 import EasyORT from "./src/index";
-import type {
-	TaskResult,
-	DetectionResult,
-	ClassificationResult,
-	EmbeddingResult,
-} from "./src/types/results";
 import { existsSync } from "node:fs";
 import dotenv from "dotenv";
-import { isDetectionResult } from "./src/types/results";
 dotenv.config();
 
 const TEST_TIMEOUT = 60000; // 60초

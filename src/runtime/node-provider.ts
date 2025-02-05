@@ -15,4 +15,8 @@ export class NodeRuntimeProvider implements RuntimeProvider {
     const nodeTensorFeeds: { [key: string]: Tensor } = feeds as { [key: string]: Tensor };
     return await nodeSession.run(nodeTensorFeeds);
   }
+
+  async release(session: RuntimeSession): Promise<void> {
+    await (session as InferenceSession).release();
+  }
 } 

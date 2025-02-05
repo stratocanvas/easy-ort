@@ -256,6 +256,14 @@ const result = await new EasyORT('node')
 - Appropriate ONNX Runtime installed (`onnxruntime-node` or `onnxruntime-web`)
 - Write access to `./output/` for visualization
 
+## Acknowledgements
+I would like to acknowledge the following open-source projects and resources that have been instrumental in the development of this project:
+
+* **[`deepghs/imgutils`](https://github.com/deepghs/imgutils)**
+ * I adopted the embedding merge (aggregation) algorithm from this project.
+ * I also utilized its image preprocessing algorithms for embeddings.
+
+
 ## License
 
 MIT

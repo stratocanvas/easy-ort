@@ -4,6 +4,7 @@ declare module 'onnxruntime-node' {
     inputNames: string[]
     outputNames: string[]
     run(feeds: { [key: string]: Tensor }): Promise<{ [key: string]: Tensor }>
+    release(): Promise<void>
   }
 
   export class Tensor {

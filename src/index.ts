@@ -95,6 +95,14 @@ class TaskBuilder<T extends TaskResult> {
 		return modelPath;
 	}
 
+	public static getSessionCache(): Map<string, RuntimeSession> {
+		return TaskBuilder.sessionCache;
+	}
+
+	public static removeFromSessionCache(modelPath: string): void {
+		TaskBuilder.sessionCache.delete(modelPath);
+	}
+
 	private async createSession(modelPath: string) {
 		if (TaskBuilder.sessionCache.has(modelPath)) {
 			return TaskBuilder.sessionCache.get(modelPath) || await this.easyOrt.createSession(modelPath);
@@ -248,6 +256,17 @@ export default class EasyORT {
 
 	public createTensor(type: "float32" | "int64", data: Float32Array | BigInt64Array, dims: number[]): RuntimeTensor {
 		return this.provider.createTensor(type, data, dims);
+	}
+
+	public async releaseSession(session: RuntimeSession): Promise<void> {
+		await this.provider.release(session);
+	}
+
+	public async releaseAllSessions(): Promise<void> {
+		for (const [modelPath, session] of TaskBuilder.getSessionCache()) {
+			await this.provider.release(session);
+			TaskBuilder.removeFromSessionCache(modelPath);
+		}
 	}
 
 	detect(labels: string[]): TaskBuilder<DetectionResult> {

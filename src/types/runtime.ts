@@ -14,4 +14,5 @@ export interface RuntimeProvider {
     dims: number[]
   ): RuntimeTensor;
   run(session: RuntimeSession, feeds: { [key: string]: RuntimeTensor }): Promise<{ [key: string]: RuntimeTensor }>;
+  release(session: RuntimeSession): Promise<void>;
 } 
