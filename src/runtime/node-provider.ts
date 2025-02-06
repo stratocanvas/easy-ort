@@ -2,8 +2,14 @@ import { InferenceSession, Tensor } from "onnxruntime-node";
 import type { RuntimeProvider, RuntimeSession, RuntimeTensor } from "../types/runtime";
 
 export class NodeRuntimeProvider implements RuntimeProvider {
-  async createSession(modelPath: string): Promise<RuntimeSession> {
-    return await InferenceSession.create(modelPath);
+  async createSession(
+    modelPath: string,
+    options: { enableCpuMemArena: boolean; enableMemPattern: boolean } = {
+      enableCpuMemArena: true,
+      enableMemPattern: true,
+    }
+  ): Promise<RuntimeSession> {
+    return await InferenceSession.create(modelPath, options);
   }
 
   createTensor(type: "float32" | "int64", data: Float32Array | BigInt64Array, dims: number[]): RuntimeTensor {
@@ -18,9 +24,5 @@ export class NodeRuntimeProvider implements RuntimeProvider {
 
   async release(session: RuntimeSession): Promise<void> {
     await (session as InferenceSession).release();
-  }
-
-  disposeTensor(tensor: RuntimeTensor): void {
-    (tensor as Tensor).dispose();
   }
 } 
