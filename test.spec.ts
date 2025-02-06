@@ -402,7 +402,7 @@ describe(
 
 			it("should properly release individual sessions", async () => {
 				const session = await model.createSession(modelPath);
-				await model.releaseSession(modelPath);
+				await model.releaseSession(session);
 
 				// 새로운 세션 생성 시 다른 인스턴스여야 함
 				const newSession = await model.createSession(modelPath);

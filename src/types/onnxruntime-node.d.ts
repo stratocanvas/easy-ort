@@ -16,5 +16,6 @@ declare module 'onnxruntime-node' {
     data: Float32Array | BigInt64Array
     dims: number[]
     type: string
+    dispose(): void
   }
 } 

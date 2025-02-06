@@ -15,4 +15,5 @@ export interface RuntimeProvider {
   ): RuntimeTensor;
   run(session: RuntimeSession, feeds: { [key: string]: RuntimeTensor }): Promise<{ [key: string]: RuntimeTensor }>;
   release(session: RuntimeSession): Promise<void>;
+  disposeTensor(tensor: RuntimeTensor): void;
 } 

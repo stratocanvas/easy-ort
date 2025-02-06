@@ -144,20 +144,32 @@ class TaskBuilder<T extends TaskResult> {
 		);
 
 		const feeds = { [inputName]: tensor };
-		const results = await this.easyOrt.run(session, feeds);
+
+		let results: { [key: string]: RuntimeTensor };
+		try {
+			results = await this.easyOrt.run(session, feeds);
+		} finally {
+			this.easyOrt.disposeTensor(tensor);
+		}
+
 		const output = results[outputName];
 
-		const processedOutputs = postprocess(output as Tensor, {
-			confidenceThreshold: this.options.confidenceThreshold || 0.2,
-			iouThreshold: this.options.iouThreshold || 0.45,
-			targetSize: this.options.targetSize || [384, 384],
-			originalSizes,
-			labels: this.options.labels || [],
-			taskType: this.taskType,
-			batch: batchSize,
-			shouldNormalize: this.shouldNormalize,
-			shouldMerge: this.shouldMerge, 
-		});
+		let processedOutputs: (ProcessedOutput | number[][])[];
+		try {
+			processedOutputs = postprocess(output as Tensor, {
+				confidenceThreshold: this.options.confidenceThreshold || 0.2,
+				iouThreshold: this.options.iouThreshold || 0.45,
+				targetSize: this.options.targetSize || [384, 384],
+				originalSizes,
+				labels: this.options.labels || [],
+				taskType: this.taskType,
+				batch: batchSize,
+				shouldNormalize: this.shouldNormalize,
+				shouldMerge: this.shouldMerge, 
+			}) as (ProcessedOutput | number[][])[];
+		} finally {
+			this.easyOrt.disposeTensor(output);
+		}
 
 		if (this.shouldDraw && this.taskType !== "embedding") {
 			await Promise.all(
@@ -213,8 +225,8 @@ class TaskBuilder<T extends TaskResult> {
 				}
 				return results;
 			} finally {
-				// 작업 완료 후 세션 해제
-				await this.easyOrt.releaseSession(resolvedModelPath);
+				// 작업이 성공하든 실패하든 세션을 해제하지 않음 (캐시된 세션 재사용)
+				// 세션 해제는 releaseSession() 또는 releaseAllSessions()를 통해 명시적으로 수행
 			}
 		} catch (error: unknown) {
 			if (error instanceof Error) {
@@ -254,17 +266,20 @@ export default class EasyORT {
 		return this.provider.createTensor(type, data, dims);
 	}
 
-	public async releaseSession(modelPath: string): Promise<void> {
-		const session = this.sessionCache.get(modelPath);
-		if (session) {
-			await this.provider.release(session);
-			this.sessionCache.delete(modelPath);
+	public async releaseSession(session: RuntimeSession): Promise<void> {
+		await this.provider.release(session);
+		// Find and remove from cache
+		for (const [path, cachedSession] of this.sessionCache.entries()) {
+			if (cachedSession === session) {
+				this.sessionCache.delete(path);
+				break;
+			}
 		}
 	}
 
 	public async releaseAllSessions(): Promise<void> {
 		const releasePromises: Promise<void>[] = [];
-		for (const session of this.sessionCache.values()) {
+		for (const [path, session] of this.sessionCache.entries()) {
 			releasePromises.push(this.provider.release(session));
 		}
 		await Promise.all(releasePromises);
@@ -285,5 +300,10 @@ export default class EasyORT {
 
 	public async run(session: RuntimeSession, feeds: FeedsType): Promise<{ [key: string]: RuntimeTensor }> {
 		return await this.provider.run(session, feeds);
+	}
+
+	// 새롭게 추가된 텐서 해제 메서드
+	public disposeTensor(tensor: RuntimeTensor): void {
+		this.provider.disposeTensor(tensor);
 	}
 }

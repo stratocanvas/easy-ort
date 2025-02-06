@@ -19,4 +19,8 @@ export class NodeRuntimeProvider implements RuntimeProvider {
   async release(session: RuntimeSession): Promise<void> {
     await (session as InferenceSession).release();
   }
+
+  disposeTensor(tensor: RuntimeTensor): void {
+    (tensor as Tensor).dispose();
+  }
 } 
