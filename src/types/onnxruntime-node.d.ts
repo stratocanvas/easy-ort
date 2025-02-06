@@ -1,6 +1,9 @@
 declare module 'onnxruntime-node' {
   export class InferenceSession {
-    static create(modelPath: string): Promise<InferenceSession>
+    static create(
+      modelPath: string,
+      options?: { enableCpuMemArena: boolean; enableMemPattern: boolean }
+    ): Promise<InferenceSession>
     inputNames: string[]
     outputNames: string[]
     run(feeds: { [key: string]: Tensor }): Promise<{ [key: string]: Tensor }>
@@ -16,6 +19,6 @@ declare module 'onnxruntime-node' {
     data: Float32Array | BigInt64Array
     dims: number[]
     type: string
-    dispose(): void
+    dispose(): void;
   }
 } 

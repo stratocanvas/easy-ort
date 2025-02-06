@@ -144,31 +144,30 @@ class TaskBuilder<T extends TaskResult> {
 		);
 
 		const feeds = { [inputName]: tensor };
+		const results = await this.easyOrt.run(session, feeds);
 
-		let results: { [key: string]: RuntimeTensor };
-		try {
-			results = await this.easyOrt.run(session, feeds);
-		} finally {
-			this.easyOrt.disposeTensor(tensor);
+		// 메모리 누수 해결: 사용 후 input tensor를 dispose 함
+		if ('dispose' in tensor && typeof (tensor as { dispose: () => void }).dispose === 'function') {
+			(tensor as { dispose: () => void }).dispose();
 		}
 
 		const output = results[outputName];
 
-		let processedOutputs: (ProcessedOutput | number[][])[];
-		try {
-			processedOutputs = postprocess(output as Tensor, {
-				confidenceThreshold: this.options.confidenceThreshold || 0.2,
-				iouThreshold: this.options.iouThreshold || 0.45,
-				targetSize: this.options.targetSize || [384, 384],
-				originalSizes,
-				labels: this.options.labels || [],
-				taskType: this.taskType,
-				batch: batchSize,
-				shouldNormalize: this.shouldNormalize,
-				shouldMerge: this.shouldMerge, 
-			}) as (ProcessedOutput | number[][])[];
-		} finally {
-			this.easyOrt.disposeTensor(output);
+		const processedOutputs = postprocess(output as Tensor, {
+			confidenceThreshold: this.options.confidenceThreshold || 0.2,
+			iouThreshold: this.options.iouThreshold || 0.45,
+			targetSize: this.options.targetSize || [384, 384],
+			originalSizes,
+			labels: this.options.labels || [],
+			taskType: this.taskType,
+			batch: batchSize,
+			shouldNormalize: this.shouldNormalize,
+			shouldMerge: this.shouldMerge,
+		});
+
+		// 메모리 누수 해결: 사용 후 output tensor를 dispose 함
+		if ('dispose' in output && typeof (output as { dispose: () => void }).dispose === 'function') {
+			(output as { dispose: () => void }).dispose();
 		}
 
 		if (this.shouldDraw && this.taskType !== "embedding") {
@@ -225,8 +224,7 @@ class TaskBuilder<T extends TaskResult> {
 				}
 				return results;
 			} finally {
-				// 작업이 성공하든 실패하든 세션을 해제하지 않음 (캐시된 세션 재사용)
-				// 세션 해제는 releaseSession() 또는 releaseAllSessions()를 통해 명시적으로 수행
+				await this.easyOrt.releaseSession(session);
 			}
 		} catch (error: unknown) {
 			if (error instanceof Error) {
@@ -257,7 +255,10 @@ export default class EasyORT {
 		if (this.sessionCache.has(modelPath)) {
 			return this.sessionCache.get(modelPath) as RuntimeSession;
 		}
-		const session = await this.provider.createSession(modelPath);
+		const session = await this.provider.createSession(modelPath, {
+			enableCpuMemArena: true,
+			enableMemPattern: true
+		});
 		this.sessionCache.set(modelPath, session);
 		return session;
 	}
@@ -300,10 +301,5 @@ export default class EasyORT {
 
 	public async run(session: RuntimeSession, feeds: FeedsType): Promise<{ [key: string]: RuntimeTensor }> {
 		return await this.provider.run(session, feeds);
-	}
-
-	// 새롭게 추가된 텐서 해제 메서드
-	public disposeTensor(tensor: RuntimeTensor): void {
-		this.provider.disposeTensor(tensor);
 	}
 }

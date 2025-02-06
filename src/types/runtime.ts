@@ -7,7 +7,10 @@ export type RuntimeSession = NodeSession | WebSession;
 export type FeedsType = { [key: string]: RuntimeTensor };
 
 export interface RuntimeProvider {
-  createSession(modelPath: string): Promise<RuntimeSession>;
+  createSession(
+    modelPath: string,
+    options?: { enableCpuMemArena: boolean; enableMemPattern: boolean }
+  ): Promise<RuntimeSession>;
   createTensor(
     type: "float32" | "int64",
     data: Float32Array | BigInt64Array,
@@ -15,5 +18,4 @@ export interface RuntimeProvider {
   ): RuntimeTensor;
   run(session: RuntimeSession, feeds: { [key: string]: RuntimeTensor }): Promise<{ [key: string]: RuntimeTensor }>;
   release(session: RuntimeSession): Promise<void>;
-  disposeTensor(tensor: RuntimeTensor): void;
 } 
