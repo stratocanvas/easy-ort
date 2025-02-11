@@ -52,6 +52,11 @@ const result = await new EasyORT('node')
     iouThreshold: 0.45,
     targetSize: [640, 640]
   })
+  // Optional: Configure ONNX Runtime memory optimizations
+  .withMemoryOptions({
+    enableCpuMemArena: true,    // Enable CPU memory arena allocation
+    enableMemPattern: true      // Enable memory pattern optimization
+  })
   .andDraw()
   .now()
 
@@ -209,6 +214,7 @@ const result = await new EasyORT('node')
 
 ### Chain Methods
 - `.withOptions(options)` - Set task-specific options
+- `.withMemoryOptions(options)` - Set ONNX Runtime memory optimization options
 - `.in(inputs)` - Provide input data (Buffer[] for images, string[] for text)
 - `.using(modelPath)` - Specify ONNX model path
 - `.andDraw()` - Enable result visualization (detection/classification only)
@@ -236,6 +242,12 @@ const result = await new EasyORT('node')
 {
   dimension?: number;           // Default: 768
   targetSize?: [number, number]; // Default: [384, 384], vision only
+}
+
+// Memory Options
+{
+  enableCpuMemArena?: boolean;  // Default: true, enables CPU memory arena allocation
+  enableMemPattern?: boolean;   // Default: true, enables memory pattern optimization
 }
 ```
 
