@@ -454,6 +454,38 @@ describe(
 					.using(modelPath)
 					.now();
 			});
+
+			it("should respect memory options when creating session", async () => {
+				const imageBuffer = await downloadImage(testImages[0]);
+				
+				// 메모리 옵션을 비활성화한 경우
+				const resultWithoutMemOpt = await model
+					.detect(["person"])
+					.in([imageBuffer])
+					.using(modelPath)
+					.withMemoryOptions({
+						enableCpuMemArena: false,
+						enableMemPattern: false
+					})
+					.now();
+
+				expect(resultWithoutMemOpt).toHaveLength(1);
+				expect(resultWithoutMemOpt[0].detections).toBeDefined();
+
+				// 메모리 옵션을 활성화한 경우
+				const resultWithMemOpt = await model
+					.detect(["person"])
+					.in([imageBuffer])
+					.using(modelPath)
+					.withMemoryOptions({
+						enableCpuMemArena: true,
+						enableMemPattern: true
+					})
+					.now();
+
+				expect(resultWithMemOpt).toHaveLength(1);
+				expect(resultWithMemOpt[0].detections).toBeDefined();
+			});
 		});
 	},
 	TEST_TIMEOUT,

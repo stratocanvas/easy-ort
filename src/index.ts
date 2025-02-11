@@ -28,6 +28,10 @@ class TaskBuilder<T extends TaskResult> {
 	private inputType: "image" | "text";
 	private easyOrt: EasyORT;
 	private static MAX_BATCH_SIZE = 32;
+	private memoryOptions: { enableCpuMemArena: boolean; enableMemPattern: boolean } = {
+		enableCpuMemArena: true,
+		enableMemPattern: true,
+	};
 
 	
 	constructor(taskType: TaskType, inputType: "image" | "text", easyOrt: EasyORT) {
@@ -38,6 +42,14 @@ class TaskBuilder<T extends TaskResult> {
 
 	withOptions(options: TaskOptions): TaskBuilder<T> {
 		this.options = { ...this.options, ...options };
+		return this;
+	}
+
+	withMemoryOptions(options: { enableCpuMemArena?: boolean; enableMemPattern?: boolean }): TaskBuilder<T> {
+		this.memoryOptions = {
+			...this.memoryOptions,
+			...options
+		};
 		return this;
 	}
 
@@ -95,7 +107,7 @@ class TaskBuilder<T extends TaskResult> {
 	}
 
 	private async createSession(modelPath: string) {
-		return await this.easyOrt.createSession(modelPath);
+		return await this.easyOrt.createSession(modelPath, this.memoryOptions);
 	}
 
 	private async processBatch(
@@ -251,14 +263,17 @@ export default class EasyORT {
 			: new WebRuntimeProvider();
 	}
 
-	public async createSession(modelPath: string): Promise<RuntimeSession> {
+	public async createSession(
+		modelPath: string,
+		options: { enableCpuMemArena: boolean; enableMemPattern: boolean } = {
+			enableCpuMemArena: true,
+			enableMemPattern: true
+		}
+	): Promise<RuntimeSession> {
 		if (this.sessionCache.has(modelPath)) {
 			return this.sessionCache.get(modelPath) as RuntimeSession;
 		}
-		const session = await this.provider.createSession(modelPath, {
-			enableCpuMemArena: true,
-			enableMemPattern: true
-		});
+		const session = await this.provider.createSession(modelPath, options);
 		this.sessionCache.set(modelPath, session);
 		return session;
 	}
