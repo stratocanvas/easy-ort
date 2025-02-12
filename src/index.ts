@@ -116,100 +116,105 @@ class TaskBuilder<T extends TaskResult> {
 		startIdx: number,
 		batchSize: number
 	): Promise<T[]> {
-		const batchInputs = inputs.slice(startIdx, startIdx + batchSize);
-		let inputTensor: Float32Array | BigInt64Array;
-		let originalSizes: [number, number][] = [];
+		let tensor: RuntimeTensor | undefined;
+		try {
+			const batchInputs = inputs.slice(startIdx, startIdx + batchSize);
+			let inputTensor: Float32Array | BigInt64Array;
+			let originalSizes: [number, number][] = [];
 
-		if (this.inputType === "image") {
-			const preprocessed = await preprocess(
-				batchInputs as Buffer[],
-				this.options.targetSize || [384, 384],
-				this.taskType
-			);
-			inputTensor = preprocessed.inputTensor;
-			originalSizes = preprocessed.originalSizes;
-		} else {
-			// Text input processing
-			const maxLength = Math.max(
-				...(this.inputs as string[]).map((text) => text.length),
-			);
-			inputTensor = new BigInt64Array(batchSize * maxLength);
+			if (this.inputType === "image") {
+				const preprocessed = await preprocess(
+					batchInputs as Buffer[],
+					this.options.targetSize || [384, 384],
+					this.taskType
+				);
+				inputTensor = preprocessed.inputTensor;
+				originalSizes = preprocessed.originalSizes;
+			} else {
+				// Text input processing
+				const maxLength = Math.max(
+					...(this.inputs as string[]).map((text) => text.length),
+				);
+				inputTensor = new BigInt64Array(batchSize * maxLength);
 
-			// Simple tokenization (you might want to use a proper tokenizer)
-			(this.inputs as string[]).forEach((text, i) => {
-				const chars = Array.from(text);
-				chars.forEach((char, j) => {
-					inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
+				// Simple tokenization (you might want to use a proper tokenizer)
+				(this.inputs as string[]).forEach((text, i) => {
+					const chars = Array.from(text);
+					chars.forEach((char, j) => {
+						inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
+					});
 				});
-			});
-		}
+			}
 
-		const inputName = session.inputNames[0];
-		const outputName = session.outputNames[0];
+			const inputName = session.inputNames[0];
+			const outputName = session.outputNames[0];
 
-		const tensor = this.easyOrt.createTensor(
-			this.inputType === "image" ? "float32" : "int64",
-			inputTensor,
-			this.inputType === "image"
-				? [batchSize, 3, ...(this.options.targetSize || [384, 384])]
-				: [batchSize, inputTensor.length / batchSize]
-		);
-
-		const feeds = { [inputName]: tensor };
-		const results = await this.easyOrt.run(session, feeds);
-
-		// 메모리 누수 해결: 사용 후 input tensor를 dispose 함
-		if ('dispose' in tensor && typeof (tensor as { dispose: () => void }).dispose === 'function') {
-			(tensor as { dispose: () => void }).dispose();
-		}
-
-		const output = results[outputName];
-
-		const processedOutputs = postprocess(output as Tensor, {
-			confidenceThreshold: this.options.confidenceThreshold || 0.2,
-			iouThreshold: this.options.iouThreshold || 0.45,
-			targetSize: this.options.targetSize || [384, 384],
-			originalSizes,
-			labels: this.options.labels || [],
-			taskType: this.taskType,
-			batch: batchSize,
-			shouldNormalize: this.shouldNormalize,
-			shouldMerge: this.shouldMerge,
-		});
-
-		// 메모리 누수 해결: 사용 후 output tensor를 dispose 함
-		if ('dispose' in output && typeof (output as { dispose: () => void }).dispose === 'function') {
-			(output as { dispose: () => void }).dispose();
-		}
-
-		if (this.shouldDraw && this.taskType !== "embedding") {
-			await Promise.all(
-				processedOutputs.map(async (processedOutput, idx) => {
-					const outputPath = `./output/${this.taskType}/${startIdx + idx + 1}.png`;
-					const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
-					if (!fs.existsSync(dir)) {
-						fs.mkdirSync(dir, { recursive: true });
-					}
-					await drawResult(
-						batchInputs[idx] as Buffer,
-						processedOutput as number[][] | { label: string; confidence: number }[],
-						outputPath,
-						{
-							labels: this.options.labels || [],
-							taskType: this.taskType as "detection" | "classification",
-						}
-					);
-				})
+			tensor = this.easyOrt.createTensor(
+				this.inputType === "image" ? "float32" : "int64",
+				inputTensor,
+				this.inputType === "image"
+					? [batchSize, 3, ...(this.options.targetSize || [384, 384])]
+					: [batchSize, inputTensor.length / batchSize]
 			);
-		}
 
-		return processedOutputs.map((output) =>
-			formatResult(
-				output as ProcessedOutput | number[][],
-				this.options.labels || [],
-				this.taskType
-			) as T
-		);
+			const feeds = { [inputName]: tensor };
+			const results = await this.easyOrt.run(session, feeds);
+
+			const output = results[outputName];
+
+			const processedOutputs = postprocess(output as Tensor, {
+				confidenceThreshold: this.options.confidenceThreshold || 0.2,
+				iouThreshold: this.options.iouThreshold || 0.45,
+				targetSize: this.options.targetSize || [384, 384],
+				originalSizes,
+				labels: this.options.labels || [],
+				taskType: this.taskType,
+				batch: batchSize,
+				shouldNormalize: this.shouldNormalize,
+				shouldMerge: this.shouldMerge,
+			});
+
+			// Dispose all tensors in results
+			for (const resultTensor of Object.values(results)) {
+				if ('dispose' in resultTensor && typeof (resultTensor as { dispose: () => void }).dispose === 'function') {
+					(resultTensor as { dispose: () => void }).dispose();
+				}
+			}
+
+			if (this.shouldDraw && this.taskType !== "embedding") {
+				await Promise.all(
+					processedOutputs.map(async (processedOutput, idx) => {
+						const outputPath = `./output/${this.taskType}/${startIdx + idx + 1}.png`;
+						const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
+						if (!fs.existsSync(dir)) {
+							fs.mkdirSync(dir, { recursive: true });
+						}
+						await drawResult(
+							batchInputs[idx] as Buffer,
+							processedOutput as number[][] | { label: string; confidence: number }[],
+							outputPath,
+							{
+								labels: this.options.labels || [],
+								taskType: this.taskType as "detection" | "classification",
+							}
+						);
+					})
+				);
+			}
+
+			return processedOutputs.map((output) =>
+				formatResult(
+					output as ProcessedOutput | number[][],
+					this.options.labels || [],
+					this.taskType
+				) as T
+			);
+		} finally {
+			// Ensure tensor is disposed
+			if (tensor && 'dispose' in tensor && typeof (tensor as { dispose: () => void }).dispose === 'function') {
+				(tensor as { dispose: () => void }).dispose();
+			}
+		}
 	}
 
 	async now(): Promise<T[]> {
@@ -227,13 +232,20 @@ class TaskBuilder<T extends TaskResult> {
 			const totalInputs = this.inputs.length;
 			const results: T[] = [];
 
-			// Process in optimal batch sizes
-			for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
-				const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
-				const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
-				results.push(...batchResults);
+			try {
+				// Process in optimal batch sizes
+				for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+					const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+					const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+					results.push(...batchResults);
+				}
+				return results;
+			} finally {
+				// Session을 캐시하지 않는 경우에만 해제
+				if (!this.easyOrt.sessionCache.has(resolvedModelPath)) {
+					await this.easyOrt.releaseSession(session);
+				}
 			}
-			return results;
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(`Failed to load model: ${error.message}`);
@@ -246,17 +258,53 @@ class TaskBuilder<T extends TaskResult> {
 export default class EasyORT {
 	private provider: RuntimeProvider;
 	private runtime: 'node' | 'web';
-	private sessionCache = new Map<string, RuntimeSession>();
+	public sessionCache = new Map<string, RuntimeSession>();
+	private static readonly DEFAULT_MAX_SESSIONS = 5;
+	private static readonly DEFAULT_MAX_MEMORY_MB = 1024; // 1GB
+	private maxSessions: number;
+	private maxMemoryMB: number;
+	private currentMemoryUsageMB = 0;
 
 	public getRuntime() {
 		return this.runtime;
 	}
 
-	constructor(runtime: 'node' | 'web' = 'node') {
+	constructor(
+		runtime: 'node' | 'web' = 'node',
+		options?: {
+			maxSessions?: number;
+			maxMemoryMB?: number;
+		}
+	) {
 		this.runtime = runtime;
 		this.provider = runtime === 'node' 
 			? new NodeRuntimeProvider()
 			: new WebRuntimeProvider();
+		this.maxSessions = options?.maxSessions || EasyORT.DEFAULT_MAX_SESSIONS;
+		this.maxMemoryMB = options?.maxMemoryMB || EasyORT.DEFAULT_MAX_MEMORY_MB;
+	}
+
+	private async removeOldestSession(): Promise<void> {
+		const oldestSession = this.sessionCache.values().next().value;
+		if (oldestSession) {
+			await this.releaseSession(oldestSession);
+		}
+	}
+
+	private async ensureResourceAvailability(modelSizeInBytes: number): Promise<void> {
+		// 세션 수 제한 확인
+		if (this.sessionCache.size >= this.maxSessions) {
+			await this.removeOldestSession();
+		}
+
+		// 메모리 사용량 제한 확인
+		const modelSizeInMB = modelSizeInBytes / (1024 * 1024);
+		if (this.currentMemoryUsageMB + modelSizeInMB > this.maxMemoryMB) {
+			// 메모리 확보를 위해 가장 오래된 세션 제거
+			while (this.currentMemoryUsageMB + modelSizeInMB > this.maxMemoryMB && this.sessionCache.size > 0) {
+				await this.removeOldestSession();
+			}
+		}
 	}
 
 	public async createSession(
@@ -269,8 +317,14 @@ export default class EasyORT {
 		if (this.sessionCache.has(modelPath)) {
 			return this.sessionCache.get(modelPath) as RuntimeSession;
 		}
+
+		// 모델 파일 크기 확인
+		const stats = await fs.promises.stat(modelPath);
+		await this.ensureResourceAvailability(stats.size);
+
 		const session = await this.provider.createSession(modelPath, options);
 		this.sessionCache.set(modelPath, session);
+		this.currentMemoryUsageMB += stats.size / (1024 * 1024);
 		return session;
 	}
 
@@ -284,9 +338,30 @@ export default class EasyORT {
 		for (const [path, cachedSession] of this.sessionCache.entries()) {
 			if (cachedSession === session) {
 				this.sessionCache.delete(path);
+				// 메모리 사용량 업데이트
+				try {
+					const stats = await fs.promises.stat(path);
+					this.currentMemoryUsageMB -= stats.size / (1024 * 1024);
+				} catch (error) {
+					console.warn(`Failed to update memory usage for ${path}`);
+				}
 				break;
 			}
 		}
+	}
+
+	public getSessionStats(): {
+		currentSessions: number;
+		maxSessions: number;
+		currentMemoryMB: number;
+		maxMemoryMB: number;
+	} {
+		return {
+			currentSessions: this.sessionCache.size,
+			maxSessions: this.maxSessions,
+			currentMemoryMB: Math.round(this.currentMemoryUsageMB),
+			maxMemoryMB: this.maxMemoryMB
+		};
 	}
 
 	public async releaseAllSessions(): Promise<void> {
@@ -296,6 +371,7 @@ export default class EasyORT {
 		}
 		await Promise.all(releasePromises);
 		this.sessionCache.clear();
+		this.currentMemoryUsageMB = 0;
 	}
 
 	detect(labels: string[]): TaskBuilder<DetectionResult> {
