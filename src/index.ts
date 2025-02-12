@@ -227,17 +227,13 @@ class TaskBuilder<T extends TaskResult> {
 			const totalInputs = this.inputs.length;
 			const results: T[] = [];
 
-			try {
-				// Process in optimal batch sizes
-				for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
-					const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
-					const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
-					results.push(...batchResults);
-				}
-				return results;
-			} finally {
-				await this.easyOrt.releaseSession(session);
+			// Process in optimal batch sizes
+			for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+				const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+				const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+				results.push(...batchResults);
 			}
+			return results;
 		} catch (error: unknown) {
 			if (error instanceof Error) {
 				throw new Error(`Failed to load model: ${error.message}`);
