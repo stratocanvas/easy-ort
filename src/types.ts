@@ -1,3 +1,5 @@
+import type { RuntimeSession } from './types/runtime';
+
 export type TaskType = 'detection' | 'classification' | 'embedding';
 
 export interface Box {
@@ -75,3 +77,15 @@ export interface ClassificationResult {
 }
 
 export type TaskResult = DetectionResult | ClassificationResult | number[][] | number[];
+
+export interface SessionManager {
+  session: RuntimeSession | null;
+  env: RuntimeSession | null;
+  initialize(modelPath: string, options?: SessionOptions): Promise<void>;
+  release(): Promise<void>;
+}
+
+export interface SessionOptions {
+  enableCpuMemArena?: boolean;
+  enableMemPattern?: boolean;
+}
