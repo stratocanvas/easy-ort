@@ -393,34 +393,59 @@ describe(
 				modelPath = await downloadModel(MODEL_URL, "detection.onnx");
 			});
 
+			// 세션 상태 출력 함수 추가
+			const logSessionStats = (model: EasyORT, context: string) => {
+				const stats = model.getSessionStats();
+				console.log(`\n[${context}] Session Stats:`);
+				console.log(`- Sessions: ${stats.currentSessions}/${stats.maxSessions}`);
+				console.log(`- Memory: ${stats.currentMemoryMB}MB/${stats.maxMemoryMB}MB\n`);
+			};
+
 			it("should reuse cached session for the same model", async () => {
+				logSessionStats(model, "Initial State");
+				
 				const session1 = await model.createSession(modelPath);
+				logSessionStats(model, "After First Session");
+				
 				const session2 = await model.createSession(modelPath);
+				logSessionStats(model, "After Second Session");
 				
 				expect(session1).toBe(session2);
 			});
 
 			it("should properly release individual sessions", async () => {
+				logSessionStats(model, "Before Session Creation");
+				
 				const session = await model.createSession(modelPath);
+				logSessionStats(model, "After Session Creation");
+				
 				await model.releaseSession(session);
+				logSessionStats(model, "After Session Release");
 
 				// 새로운 세션 생성 시 다른 인스턴스여야 함
 				const newSession = await model.createSession(modelPath);
+				logSessionStats(model, "After New Session Creation");
+				
 				expect(newSession).not.toBe(session);
 			});
 
 			it("should handle multiple models and release all sessions", async () => {
+				logSessionStats(model, "Initial State");
+				
 				const detectionSession = await model.createSession(modelPath);
+				logSessionStats(model, "After Detection Session");
 				
 				const classificationModelPath = await downloadModel(
 					process.env.CLASSIFICATION_MODEL_URL ?? "",
 					"classification.onnx"
 				);
 				const classificationSession = await model.createSession(classificationModelPath);
+				logSessionStats(model, "After Classification Session");
 
 				expect(detectionSession).not.toBe(classificationSession);
 
 				await model.releaseAllSessions();
+				logSessionStats(model, "After Releasing All Sessions");
 
 				// 새로운 세션들은 이전 세션들과 달라야 함
 				const newDetectionSession = await model.createSession(modelPath);
@@ -428,9 +453,51 @@ describe(
 
 				expect(newDetectionSession).not.toBe(detectionSession);
 				expect(newClassificationSession).not.toBe(classificationSession);
+				
+				logSessionStats(model, "Final State");
+			});
+
+			it("should handle session limits and memory constraints", async () => {
+				// 제한된 리소스로 새 EasyORT 인스턴스 생성
+				const limitedModel = new EasyORT('node', {
+					maxSessions: 2,
+					maxMemoryMB: 512
+				});
+				
+				logSessionStats(limitedModel, "Initial State");
+
+				// 첫 번째 모델 로드
+				const session1 = await limitedModel.createSession(modelPath);
+				logSessionStats(limitedModel, "After First Session");
+
+				// 두 번째 모델 로드 (분류 모델)
+				const classificationModelPath = await downloadModel(
+					process.env.CLASSIFICATION_MODEL_URL ?? "",
+					"classification.onnx"
+				);
+				const session2 = await limitedModel.createSession(classificationModelPath);
+				logSessionStats(limitedModel, "After Second Session");
+
+				// 세 번째 모델 로드 시도 (임베딩 모델) - 가장 오래된 세션이 자동으로 해제되어야 함
+				const embeddingModelPath = await downloadModel(
+					process.env.EMBEDDING_MODEL_URL ?? "",
+					"embedding.onnx"
+				);
+				const session3 = await limitedModel.createSession(embeddingModelPath);
+				logSessionStats(limitedModel, "After Third Session");
+
+				// 세션 수가 maxSessions를 초과하지 않는지 확인
+				const stats = limitedModel.getSessionStats();
+				expect(stats.currentSessions).toBeLessThanOrEqual(stats.maxSessions);
+				expect(stats.currentMemoryMB).toBeLessThanOrEqual(stats.maxMemoryMB);
+
+				await limitedModel.releaseAllSessions();
+				logSessionStats(limitedModel, "After Cleanup");
 			});
 
 			it("should handle session cleanup after task completion", async () => {
+				logSessionStats(model, "Initial State");
+				
 				const imageBuffer = await downloadImage(testImages[0]);
 				
 				// 첫 번째 실행
@@ -438,21 +505,28 @@ describe(
 					.in([imageBuffer])
 					.using(modelPath)
 					.now();
+				
+				logSessionStats(model, "After First Detection");
 
 				// 동일한 모델로 두 번째 실행 - 세션이 재사용되어야 함
 				await model.detect(["person"])
 					.in([imageBuffer])
 					.using(modelPath)
 					.now();
+				
+				logSessionStats(model, "After Second Detection");
 
 				// 세션 해제
 				await model.releaseAllSessions();
+				logSessionStats(model, "After Session Release");
 
 				// 세션 해제 후 새로운 실행 - 새로운 세션이 생성되어야 함
 				await model.detect(["person"])
 					.in([imageBuffer])
 					.using(modelPath)
 					.now();
+				
+				logSessionStats(model, "Final State");
 			});
 
 			it("should respect memory options when creating session", async () => {
