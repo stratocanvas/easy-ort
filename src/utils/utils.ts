@@ -1,4 +1,3 @@
-
 /**
  * Calculate IoU (Intersection over Union) between two bounding boxes
  */
@@ -20,28 +19,56 @@ export function iou(box1: [number, number, number, number], box2: [number, numbe
 }
 
 /**
- * Apply Non-Maximum Suppression to remove overlapping boxes
+ * Apply Soft Non-Maximum Suppression to adjust confidence scores of overlapping boxes
+ * using Gaussian decay function
  */
-export function NMS(boxes: [number, number, number, number, number, number][], iouThreshold: number): [number, number, number, number, number, number][] {
-  const sortedBoxes = boxes.sort((a, b) => b[4] - a[4]);
-  const nmsBoxes: [number, number, number, number, number, number][] = [];
+export function NMS(
+  boxes: [number, number, number, number, number, number][],
+  iouThreshold: number,
+  sigma = 0.5,
+  scoreThreshold = 0.3
+): [number, number, number, number, number, number][] {
+  if (boxes.length === 0) return [];
 
-  while (sortedBoxes.length > 0) {
-    const chosenBox = sortedBoxes.shift();
-    if (chosenBox) {
-      nmsBoxes.push(chosenBox);
+  // 점수에 따라 인덱스 정렬
+  let indices = Array.from({ length: boxes.length }, (_, i) => i)
+    .sort((a, b) => boxes[b][4] - boxes[a][4]);
+  
+  const keepBoxes: [number, number, number, number, number, number][] = [];
+  const scores = boxes.map(box => box[4]);
 
-      const remainingBoxes = sortedBoxes.filter(
-        (box) => iou(
-          [chosenBox[0], chosenBox[1], chosenBox[2], chosenBox[3]], 
-          [box[0], box[1], box[2], box[3]]
-        ) < iouThreshold
-      );
-      sortedBoxes.length = 0;
-      sortedBoxes.push(...remainingBoxes);
+  while (indices.length > 0) {
+    const currentIdx = indices[0];
+    keepBoxes.push(boxes[currentIdx]);
+
+    if (indices.length === 1) break;
+
+    // 현재 박스를 제외한 나머지 박스들의 인덱스
+    indices.splice(0, 1);
+
+    // 현재 박스와 나머지 박스들 간의 IoU 계산
+    const ious = indices.map(idx => 
+      iou(
+        [boxes[currentIdx][0], boxes[currentIdx][1], boxes[currentIdx][2], boxes[currentIdx][3]],
+        [boxes[idx][0], boxes[idx][1], boxes[idx][2], boxes[idx][3]]
+      )
+    );
+
+    // Soft-NMS를 사용하여 점수 감소
+    const weights = ious.map(iouValue => 
+      Math.exp(-(iouValue * iouValue) / sigma)
+    );
+
+    // 남은 박스들의 점수 업데이트
+    for (let i = 0; i < indices.length; i++) {
+      scores[indices[i]] *= weights[i];
     }
+
+    // scoreThreshold보다 낮은 점수를 가진 박스 제거
+    indices = indices.filter(idx => scores[idx] > scoreThreshold);
   }
-  return nmsBoxes;
+
+  return keepBoxes;
 }
 
 /**

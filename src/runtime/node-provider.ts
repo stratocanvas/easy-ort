@@ -26,7 +26,7 @@ export class NodeRuntimeProvider extends BaseProvider {
       graphOptimizationLevel: 'all',
       enableCpuMemArena: false, // Disable CPU arena to prevent memory accumulation
       enableMemPattern: false,   // Disable memory pattern to force immediate cleanup
-      executionMode: 'sequential'
+      executionMode: 'sequential',
     };
     
     this.sessionManager.session = await ort.InferenceSession.create(modelPath, sessionOptions) as RuntimeSession;
