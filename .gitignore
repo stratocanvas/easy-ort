@@ -136,3 +136,5 @@ test.mjs
 test.ts
 
 .clinic/**
+
+.DS_Store
