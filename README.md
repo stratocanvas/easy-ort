@@ -230,6 +230,11 @@ const result = await new EasyORT('node')
   confidenceThreshold?: number;  // Default: 0.2
   iouThreshold?: number;        // Default: 0.45
   targetSize?: [number, number]; // Default: [384, 384]
+  sahi?: {                      // SAHI (Slicing Aided Hyper Inference)
+    overlap: number;            // Default: 0.1, overlap ratio between slices
+    mergeThreshold?: number;    // Threshold for merging overlapped detections
+    aspectRatioThreshold?: number; // Only apply SAHI when image aspect ratio exceeds this value
+  }
 }
 
 // Classification
@@ -250,6 +255,43 @@ const result = await new EasyORT('node')
   enableMemPattern?: boolean;   // Default: true, enables memory pattern optimization
 }
 ```
+
+## Advanced Features
+
+### SAHI (Slicing Aided Hyper Inference)
+
+SAHI is a technique that improves object detection performance on images with extreme aspect ratios or small objects. It works by:
+1. Slicing the input image into smaller, overlapping pieces
+2. Running detection on each slice
+3. Merging the results back together
+
+```javascript
+const result = await new EasyORT('node')
+  .detect(['person'])
+  .withOptions({
+    iouThreshold: 0.45,
+    confidenceThreshold: 0.2,
+    targetSize: [384, 384],
+  })
+  .withSahi({
+    overlap: 0.2,              // 20% overlap between slices
+    mergeThreshold: 0.5,       // Threshold for merging overlapped detections
+    aspectRatioThreshold: 4.0  // Only apply SAHI when image aspect ratio > 4.0
+  })
+  .in(imageBuffers)
+  .using('./model.onnx')
+  .andDraw()                   // Optional: visualize results
+  .now()
+```
+
+SAHI is particularly useful for:
+- Images with extreme aspect ratios (e.g., panoramas)
+- Images containing many small objects
+- Satellite or aerial imagery
+
+The `aspectRatioThreshold` option allows you to selectively apply SAHI only to images that need it:
+- If image aspect ratio > threshold: Image is sliced and processed using SAHI
+- If image aspect ratio ≤ threshold: Image is processed normally without slicing
 
 ## Requirements
 
