@@ -6,7 +6,8 @@ import type {
 	TaskResult,
 	TaskType,
 	TaskOptions,
-  ProcessedOutput
+	ProcessedOutput,
+	PreprocessResult
 } from "./types";
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,6 +79,21 @@ class TaskBuilder<T extends TaskResult> {
 		return this;
 	}
 
+	withSahi(options: {
+		overlap?: number;
+		minArea?: number;
+		mergeThreshold?: number;
+		aspectRatioThreshold?: number;
+	} = {}): TaskBuilder<T> {
+		this.options.sahi = {
+			overlap: options.overlap || 0.1,
+			minArea: options.minArea,
+			mergeThreshold: options.mergeThreshold,
+			aspectRatioThreshold: options.aspectRatioThreshold,
+		};
+		return this;
+	}
+
 	private resolvePath(modelPath: string): string {
 		if (path.isAbsolute(modelPath)) {
 			return modelPath;
@@ -111,51 +127,78 @@ class TaskBuilder<T extends TaskResult> {
 	}
 
 	private async processBatch(
-		inputs: Buffer[] | string[],
+		inputs: Buffer[] | string[] | PreprocessResult[],
 		session: RuntimeSession,
 		startIdx: number,
-		batchSize: number
+		batchSize: number,
+		isPreprocessed = false
 	): Promise<T[]> {
 		let tensor: RuntimeTensor | undefined;
 		try {
-			const batchInputs = inputs.slice(startIdx, startIdx + batchSize);
 			let inputTensor: Float32Array | BigInt64Array;
 			let originalSizes: [number, number][] = [];
+			let sliceInfo: PreprocessResult['sliceInfo'];
+			let slicesPerImage: number[] = [];
 
-			if (this.inputType === "image") {
-				const preprocessed = await preprocess(
-					batchInputs as Buffer[],
-					this.options.targetSize || [384, 384],
-					this.taskType
-				);
+			// SAHI 사용 여부 확인
+			const useSAHI = this.taskType === 'detection' && this.options.sahi && this.options.sahi.overlap !== undefined;
+
+			if (isPreprocessed && Array.isArray(inputs) && inputs.length === 1) {
+				// 이미 전처리된 데이터 사용
+				const preprocessed = inputs[0] as PreprocessResult;
 				inputTensor = preprocessed.inputTensor;
 				originalSizes = preprocessed.originalSizes;
+				if (useSAHI) {
+					sliceInfo = preprocessed.sliceInfo;
+					slicesPerImage = preprocessed.slicesPerImage || [];
+				}
 			} else {
-				// Text input processing
-				const maxLength = Math.max(
-					...(this.inputs as string[]).map((text) => text.length),
-				);
-				inputTensor = new BigInt64Array(batchSize * maxLength);
+				// 일반적인 전처리
+				const batchInputs = (inputs as (Buffer[] | string[])).slice(startIdx, startIdx + batchSize);
+				if (this.inputType === "image") {
+					const preprocessed = await preprocess(
+						batchInputs as Buffer[],
+						this.options.targetSize || [384, 384],
+						this.taskType,
+						useSAHI ? this.options.sahi : undefined
+					);
+					inputTensor = preprocessed.inputTensor;
+					originalSizes = preprocessed.originalSizes;
+					if (useSAHI) {
+						sliceInfo = preprocessed.sliceInfo;
+						slicesPerImage = preprocessed.slicesPerImage || [];
+					}
+				} else {
+					// Text input processing
+					const maxLength = Math.max(
+						...(this.inputs as string[]).map((text) => text.length),
+					);
+					inputTensor = new BigInt64Array(batchSize * maxLength);
 
-				// Simple tokenization (you might want to use a proper tokenizer)
-				(this.inputs as string[]).forEach((text, i) => {
-					const chars = Array.from(text);
-					chars.forEach((char, j) => {
-						inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
+					// Simple tokenization
+					(this.inputs as string[]).forEach((text, i) => {
+						const chars = Array.from(text);
+						chars.forEach((char, j) => {
+							inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
+						});
 					});
-				});
+				}
 			}
 
-			const inputName = session.inputNames[0];
-			const outputName = session.outputNames[0];
+			const actualBatchSize = useSAHI && sliceInfo
+				? sliceInfo.length
+				: batchSize;
 
 			tensor = this.easyOrt.createTensor(
 				this.inputType === "image" ? "float32" : "int64",
 				inputTensor,
 				this.inputType === "image"
-					? [batchSize, 3, ...(this.options.targetSize || [384, 384])]
-					: [batchSize, inputTensor.length / batchSize]
+					? [actualBatchSize, 3, ...(this.options.targetSize || [384, 384])]
+					: [actualBatchSize, inputTensor.length / actualBatchSize]
 			);
+
+			const inputName = session.inputNames[0];
+			const outputName = session.outputNames[0];
 
 			const feeds = { [inputName]: tensor };
 			const results = await this.easyOrt.run(session, feeds);
@@ -169,9 +212,15 @@ class TaskBuilder<T extends TaskResult> {
 				originalSizes,
 				labels: this.options.labels || [],
 				taskType: this.taskType,
-				batch: batchSize,
+				batch: actualBatchSize,
 				shouldNormalize: this.shouldNormalize,
 				shouldMerge: this.shouldMerge,
+				sahi: useSAHI && sliceInfo && this.options.sahi ? {
+					overlap: this.options.sahi.overlap,
+					minArea: this.options.sahi.minArea,
+					mergeThreshold: this.options.sahi.mergeThreshold,
+					sliceInfo
+				} : undefined
 			});
 
 			// Dispose all tensors in results
@@ -182,24 +231,50 @@ class TaskBuilder<T extends TaskResult> {
 			}
 
 			if (this.shouldDraw && this.taskType !== "embedding") {
-				await Promise.all(
-					processedOutputs.map(async (processedOutput, idx) => {
-						const outputPath = `./output/${this.taskType}/${startIdx + idx + 1}.png`;
-						const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
-						if (!fs.existsSync(dir)) {
-							fs.mkdirSync(dir, { recursive: true });
-						}
-						await drawResult(
-							batchInputs[idx] as Buffer,
-							processedOutput as number[][] | { label: string; confidence: number }[],
-							outputPath,
-							{
-								labels: this.options.labels || [],
-								taskType: this.taskType as "detection" | "classification",
+				// SAHI 사용 시 원본 이미지 단위로 결과 시각화
+				if (useSAHI && isPreprocessed) {
+					// processedOutputs는 이미 이미지별로 병합된 결과
+					await Promise.all(
+						processedOutputs.map(async (processedOutput, imageIdx) => {
+							const outputPath = `./output/${this.taskType}/${imageIdx + 1}.png`;
+							const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
+							if (!fs.existsSync(dir)) {
+								fs.mkdirSync(dir, { recursive: true });
 							}
-						);
-					})
-				);
+
+							await drawResult(
+								(this.inputs as Buffer[])[imageIdx],
+								processedOutput as number[][],
+								outputPath,
+								{
+									labels: this.options.labels || [],
+									taskType: this.taskType as "detection" | "classification",
+								}
+							);
+						})
+					);
+				} else {
+					// 일반적인 경우 (SAHI 미사용)
+					await Promise.all(
+						processedOutputs.map(async (processedOutput, idx) => {
+							const outputPath = `./output/${this.taskType}/${startIdx + idx + 1}.png`;
+							const dir = outputPath.substring(0, outputPath.lastIndexOf('/'));
+							if (!fs.existsSync(dir)) {
+								fs.mkdirSync(dir, { recursive: true });
+							}
+
+							await drawResult(
+								(this.inputs as Buffer[])[startIdx + idx],
+								processedOutput as number[][] | { label: string; confidence: number }[],
+								outputPath,
+								{
+									labels: this.options.labels || [],
+									taskType: this.taskType as "detection" | "classification",
+								}
+							);
+						})
+					);
+				}
 			}
 
 			return processedOutputs.map((output) =>
@@ -229,15 +304,40 @@ class TaskBuilder<T extends TaskResult> {
 			const resolvedModelPath = this.resolvePath(this.modelPath);
 			const session = await this.createSession(resolvedModelPath);
 			
-			const totalInputs = this.inputs.length;
 			const results: T[] = [];
 
 			try {
-				// Process in optimal batch sizes
-				for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
-					const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
-					const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
-					results.push(...batchResults);
+				// SAHI를 사용하는 경우, 먼저 전체 이미지를 전처리하여 슬라이스 개수 파악
+				if (this.taskType === 'detection' && this.options.sahi) {
+					const preprocessed = await preprocess(
+						this.inputs as Buffer[],
+						this.options.targetSize || [384, 384],
+						this.taskType,
+						this.options.sahi
+					);
+					
+					const totalSlices = preprocessed.sliceInfo?.length || this.inputs.length;
+
+					// 슬라이스된 이미지들을 배치 단위로 처리
+					for (let i = 0; i < totalSlices; i += TaskBuilder.MAX_BATCH_SIZE) {
+						const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalSlices - i);
+						const batchResults = await this.processBatch(
+							[preprocessed], // 전처리된 결과를 그대로 전달
+							session,
+							i,
+							batchSize,
+							true // SAHI 전처리 완료 플래그
+						);
+						results.push(...batchResults);
+					}
+				} else {
+					// 일반적인 경우 (SAHI 미사용)
+					const totalInputs = this.inputs.length;
+					for (let i = 0; i < totalInputs; i += TaskBuilder.MAX_BATCH_SIZE) {
+						const batchSize = Math.min(TaskBuilder.MAX_BATCH_SIZE, totalInputs - i);
+						const batchResults = await this.processBatch(this.inputs, session, i, batchSize);
+						results.push(...batchResults);
+					}
 				}
 				return results;
 			} finally {

@@ -19,6 +19,18 @@ export interface TaskOptions {
   modelPath?: string;
   headless?: boolean;
   type?: 'image' | 'text';
+  sahi?: {
+    overlap: number;
+    minArea?: number;
+    mergeThreshold?: number;
+    aspectRatioThreshold?: number;
+    sliceInfo?: Array<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+  };
 }
 
 export interface ProcessOptions {
@@ -31,6 +43,18 @@ export interface ProcessOptions {
   batch: number;
   shouldNormalize?: boolean;
   shouldMerge?: boolean;
+  sahi?: {
+    overlap: number;
+    minArea?: number;
+    mergeThreshold?: number;
+    aspectRatioThreshold?: number;
+    sliceInfo?: Array<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+  };
 }
 
 export interface DrawOptions {
@@ -41,6 +65,14 @@ export interface DrawOptions {
 export interface PreprocessResult {
   inputTensor: Float32Array;
   originalSizes: [number, number][];
+  sliceInfo?: Array<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    imageIndex: number;
+  }>;
+  slicesPerImage?: number[];
 }
 
 export interface DetectionOutput {

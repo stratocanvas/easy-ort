@@ -25,12 +25,9 @@ async function downloadModel(url: string, fileName: string): Promise<string> {
 
 	try {
 		await fs.access(filePath);
-		console.log(`Model ${fileName} already exists`);
 	} catch {
-		console.log(`Downloading model ${fileName}...`);
 		const response = await axios.get(url, { responseType: "arraybuffer" });
 		await fs.writeFile(filePath, Buffer.from(response.data));
-		console.log(`Model ${fileName} downloaded successfully`);
 	}
 
 	return filePath;
@@ -105,8 +102,8 @@ describe(
 						.in(imageBuffers)
 						.using(modelPath)
 						.withOptions({
-							iouThreshold: 0.45,
-							confidenceThreshold: 0.2,
+							iouThreshold: 0.7,
+							confidenceThreshold: 0.3,
 							targetSize: [384, 384],
 						})
 						.andDraw()
@@ -134,8 +131,8 @@ describe(
 					const result = await model
 						.detect(["person"])
 						.withOptions({
-							iouThreshold: 0.45,
-							confidenceThreshold: 0.2,
+							iouThreshold: 0.7,
+							confidenceThreshold: 0.3,
 							targetSize: [384, 384],
 						})
 						.in(imageBuffers)
@@ -163,6 +160,66 @@ describe(
 							expect(item.squareness).toBeGreaterThanOrEqual(0);
 							expect(item.squareness).toBeLessThanOrEqual(1);
 						}
+					}
+				});
+
+				it("should detect objects using SAHI with aspect ratio threshold", async () => {
+					// 긴 이미지와 일반 이미지를 모두 테스트하기 위해 이미지 준비
+					const longImageUrl = testImages[0]; // 긴 이미지 URL (비율이 큰 이미지)
+					const normalImageUrl = testImages[1]; // 일반 이미지 URL
+
+					const imageBuffers = await Promise.all([
+						downloadImage(longImageUrl),
+						downloadImage(normalImageUrl)
+					]);
+
+					const result = await model
+						.detect(["person"])
+						.withOptions({
+							iouThreshold: 0.45,
+							confidenceThreshold: 0.2,
+							targetSize: [384, 384],
+						})
+						.withSahi({
+							overlap: 0.2,
+							mergeThreshold: 0.5,
+							aspectRatioThreshold: 4.0 // 비율이 2배 이상일 때만 SAHI 적용
+						})
+						.in(imageBuffers)
+						.using(modelPath)
+						.andDraw()
+						.now();
+
+					expect(result).toBeDefined();
+					expect(Array.isArray(result)).toBe(true);
+					expect(result).toHaveLength(2);
+
+					// 각 이미지의 결과 검증
+					for (const detection of result) {
+						expect(detection).toHaveProperty("detections");
+						expect(Array.isArray(detection.detections)).toBe(true);
+
+						for (const item of detection.detections) {
+							expect(item).toHaveProperty("label");
+							expect(item).toHaveProperty("box");
+							expect(item).toHaveProperty("confidence");
+							expect(item).toHaveProperty("squareness");
+
+							expect(Array.isArray(item.box)).toBe(true);
+							expect(item.box).toHaveLength(4);
+							expect(item.confidence).toBeGreaterThanOrEqual(0);
+							expect(item.confidence).toBeLessThanOrEqual(1);
+						}
+					}
+
+					// 파일 생성 확인 전 약간의 지연
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+
+					// 결과 이미지 파일 생성 확인
+					for (let i = 0; i < imageBuffers.length; i++) {
+						const outputPath = path.join(outputDir, 'detection', `${i + 1}.png`);
+						const exists = existsSync(outputPath);
+						expect(exists, `File ${outputPath} should exist`).toBe(true);
 					}
 				});
 			},
@@ -396,10 +453,7 @@ describe(
 			// 세션 상태 출력 함수 추가
 			const logSessionStats = (model: EasyORT, context: string) => {
 				const stats = model.getSessionStats();
-				console.log(`\n[${context}] Session Stats:`);
-				console.log(`- Sessions: ${stats.currentSessions}/${stats.maxSessions}`);
-				console.log(`- Memory: ${stats.currentMemoryMB}MB/${stats.maxMemoryMB}MB\n`);
-			};
+				};
 
 			it("should reuse cached session for the same model", async () => {
 				logSessionStats(model, "Initial State");

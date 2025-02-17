@@ -19,6 +19,7 @@ export function postprocess(output: Tensor, options: ProcessOptions) {
     batch,
     shouldNormalize,
     shouldMerge,
+    sahi,
   } = options;
 
   switch (taskType) {
@@ -30,6 +31,8 @@ export function postprocess(output: Tensor, options: ProcessOptions) {
         targetSize,
         originalSizes,
         batch,
+        sahi?.sliceInfo as { x: number; y: number; width: number; height: number; imageIndex: number }[],
+        sahi?.mergeThreshold
       );
     case 'classification':
       return processClassificationOutput(
