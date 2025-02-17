@@ -18,7 +18,12 @@ export function formatResult(
       return {
         detections: processedOutput.map(([x, y, w, h, conf, classIndex]) => ({
           label: labels[classIndex],
-          box: [x, y, w, h],
+          box: [
+            Math.round(x),
+            Math.round(y),
+            Math.round(w),
+            Math.round(h)
+          ],
           squareness: Number((1 - Math.abs(1 - Math.min(w, h) / Math.max(w, h))).toFixed(4)),
           confidence: Number(conf.toFixed(4)),
         })),
