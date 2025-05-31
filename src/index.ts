@@ -160,7 +160,8 @@ class TaskBuilder<T extends TaskResult> {
 						batchInputs as Buffer[],
 						this.options.targetSize || [384, 384],
 						this.taskType,
-						useSAHI ? this.options.sahi : undefined
+						useSAHI ? this.options.sahi : undefined,
+						this.options.inputShape
 					);
 					inputTensor = preprocessed.inputTensor;
 					originalSizes = preprocessed.originalSizes;
@@ -189,12 +190,22 @@ class TaskBuilder<T extends TaskResult> {
 				? sliceInfo.length
 				: batchSize;
 
+			let tensorDims: number[];
+			if (this.inputType === "image") {
+				const [targetWidth, targetHeight] = this.options.targetSize || [384, 384];
+				if (this.options.inputShape === 'NHWC') {
+					tensorDims = [actualBatchSize, targetHeight, targetWidth, 3];
+				} else {
+					tensorDims = [actualBatchSize, 3, targetHeight, targetWidth];
+				}
+			} else {
+				tensorDims = [actualBatchSize, inputTensor.length / actualBatchSize];
+			}
+
 			tensor = this.easyOrt.createTensor(
 				this.inputType === "image" ? "float32" : "int64",
 				inputTensor,
-				this.inputType === "image"
-					? [actualBatchSize, 3, ...(this.options.targetSize || [384, 384])]
-					: [actualBatchSize, inputTensor.length / actualBatchSize]
+				tensorDims
 			);
 
 			const inputName = session.inputNames[0];
@@ -313,7 +324,8 @@ class TaskBuilder<T extends TaskResult> {
 						this.inputs as Buffer[],
 						this.options.targetSize || [384, 384],
 						this.taskType,
-						this.options.sahi
+						this.options.sahi,
+						this.options.inputShape
 					);
 					
 					const totalSlices = preprocessed.sliceInfo?.length || this.inputs.length;

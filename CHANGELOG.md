@@ -1,5 +1,8 @@
 ## Change Log
 
+### v2.1.0
+- Add NHWC format support
+
 ### v1.1.1
 - Fix npm package publishing workflow
 - Add GitHub Actions for automated releases

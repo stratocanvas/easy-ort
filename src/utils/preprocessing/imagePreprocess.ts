@@ -30,12 +30,15 @@ async function processImageToTensor(
     y?: number;
     width?: number;
     height?: number;
+    inputShape?: 'NCHW' | 'NHWC';
   }
 ): Promise<ProcessedImage> {
   const metadata = await sharp(imageBuffer).metadata();
   if (!metadata.width || !metadata.height) {
     throw new Error('Failed to get image dimensions');
   }
+
+  const inputShape = options?.inputShape || 'NCHW';
 
   let processedImage: sharp.Sharp;
   if (taskType === 'embedding') {
@@ -54,7 +57,7 @@ async function processImageToTensor(
       sequentialRead: true
     });
 
-    if (options) {
+    if (options && (options.x !== undefined || options.y !== undefined || options.width !== undefined || options.height !== undefined)) {
       processedImage = processedImage.extract({
         left: options.x || 0,
         top: options.y || 0,
@@ -81,7 +84,16 @@ async function processImageToTensor(
   for (let i = 0; i < pixelCount; i++) {
     for (let c = 0; c < channels; c++) {
       const srcIdx = i * channels + c;
-      const dstIdx = c * pixelCount + i;
+      let dstIdx: number;
+      
+      if (inputShape === 'NHWC') {
+        // NHWC: [batch, height, width, channels]
+        dstIdx = i * channels + c;
+      } else {
+        // NCHW: [batch, channels, height, width] (기본값)
+        dstIdx = c * pixelCount + i;
+      }
+      
       const normalizedValue = buffer[srcIdx] / 255.0;
 
       if (taskType === 'embedding') {
@@ -105,7 +117,8 @@ async function sliceDetectionImage(
   imageBuffer: Buffer,
   overlap: number,
   targetSize: [number, number],
-  imageIndex: number
+  imageIndex: number,
+  inputShape?: 'NCHW' | 'NHWC'
 ): Promise<ImageSlice[]> {
   const metadata = await sharp(imageBuffer).metadata();
   if (!metadata.width || !metadata.height) {
@@ -137,7 +150,7 @@ async function sliceDetectionImage(
 
       // 2. 정사각형 슬라이스를 추출하고 targetSize로 리사이즈
       const processed = await processImageToTensor(imageBuffer, targetSize, 'detection', {
-        x, y, width: sliceSize, height: sliceSize
+        x, y, width: sliceSize, height: sliceSize, inputShape
       });
 
       slices.push({
@@ -154,7 +167,8 @@ export async function preprocess(
   imageBuffers: Buffer[],
   targetSize: [number, number],
   taskType: TaskType,
-  sahi?: { overlap: number; aspectRatioThreshold?: number }
+  sahi?: { overlap: number; aspectRatioThreshold?: number },
+  inputShape?: 'NCHW' | 'NHWC'
 ) {
   // SAHI는 Detection에서만 사용
   if (taskType === 'detection' && sahi) {
@@ -173,7 +187,7 @@ export async function preprocess(
       
       // aspectRatioThreshold가 설정되어 있고, 비율이 임계값보다 작으면 슬라이스 처리하지 않음
       if (sahi.aspectRatioThreshold && aspectRatio < sahi.aspectRatioThreshold) {
-        const processed = await processImageToTensor(imageBuffers[i], targetSize, taskType);
+        const processed = await processImageToTensor(imageBuffers[i], targetSize, taskType, { inputShape });
         allSlices.push({
           ...processed,
           slice: { x: 0, y: 0, width: metadata.width, height: metadata.height, imageIndex: i }
@@ -183,7 +197,7 @@ export async function preprocess(
         continue;
       }
 
-      const slices = await sliceDetectionImage(imageBuffers[i], sahi.overlap, targetSize, i);
+      const slices = await sliceDetectionImage(imageBuffers[i], sahi.overlap, targetSize, i, inputShape);
       allSlices.push(...slices);
       slicesPerImage.push(slices.length);
       sliceInfos.push(...slices.map(s => ({ ...s.slice, imageIndex: i })));
@@ -208,7 +222,7 @@ export async function preprocess(
 
   // 일반적인 이미지 처리
   const results = await Promise.all(
-    imageBuffers.map(buffer => processImageToTensor(buffer, targetSize, taskType))
+    imageBuffers.map(buffer => processImageToTensor(buffer, targetSize, taskType, { inputShape }))
   );
 
   const inputTensor = new Float32Array(

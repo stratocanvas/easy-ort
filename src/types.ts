@@ -19,6 +19,7 @@ export interface TaskOptions {
   modelPath?: string;
   headless?: boolean;
   type?: 'image' | 'text';
+  inputShape?: 'NCHW' | 'NHWC';
   sahi?: {
     overlap: number;
     minArea?: number;
