@@ -50,7 +50,7 @@ describe(
 		const testImages = process.env.TEST_IMAGES?.split(",") ?? [];
 
 		beforeAll(async () => {
-			model = new EasyORT('node');
+			model = new EasyORT("node");
 		});
 
 		afterEach(async () => {
@@ -117,7 +117,11 @@ describe(
 
 					// 파일 생성 확인
 					for (let i = 0; i < imageBuffers.length; i++) {
-						const outputPath = path.join(outputDir, 'detection', `${i + 1}.png`);
+						const outputPath = path.join(
+							outputDir,
+							"detection",
+							`${i + 1}.png`,
+						);
 						const exists = existsSync(outputPath);
 						expect(exists, `File ${outputPath} should exist`).toBe(true);
 					}
@@ -170,7 +174,7 @@ describe(
 
 					const imageBuffers = await Promise.all([
 						downloadImage(longImageUrl),
-						downloadImage(normalImageUrl)
+						downloadImage(normalImageUrl),
 					]);
 
 					const result = await model
@@ -183,7 +187,7 @@ describe(
 						.withSahi({
 							overlap: 0.2,
 							mergeThreshold: 0.5,
-							aspectRatioThreshold: 4.0 // 비율이 2배 이상일 때만 SAHI 적용
+							aspectRatioThreshold: 4.0, // 비율이 2배 이상일 때만 SAHI 적용
 						})
 						.in(imageBuffers)
 						.using(modelPath)
@@ -217,7 +221,11 @@ describe(
 
 					// 결과 이미지 파일 생성 확인
 					for (let i = 0; i < imageBuffers.length; i++) {
-						const outputPath = path.join(outputDir, 'detection', `${i + 1}.png`);
+						const outputPath = path.join(
+							outputDir,
+							"detection",
+							`${i + 1}.png`,
+						);
 						const exists = existsSync(outputPath);
 						expect(exists, `File ${outputPath} should exist`).toBe(true);
 					}
@@ -235,7 +243,7 @@ describe(
 
 				beforeAll(async () => {
 					modelPath = await downloadModel(MODEL_URL, "classification.onnx");
-					outputDir = await ensureOutputDir(); 
+					outputDir = await ensureOutputDir();
 				});
 
 				it("should download classification model", async () => {
@@ -243,7 +251,7 @@ describe(
 				});
 
 				it("should classify a single image without drawing", async () => {
-					const imageBuffer = await downloadImage(testImages[0]); 
+					const imageBuffer = await downloadImage(testImages[0]);
 
 					const result = await model
 						.classify(["general", "sensitive", "questionable", "explicit"])
@@ -286,7 +294,11 @@ describe(
 
 					// 파일 생성 확인
 					for (let i = 0; i < imageBuffers.length; i++) {
-						const outputPath = path.join(outputDir, 'classification', `${i + 1}.png`);
+						const outputPath = path.join(
+							outputDir,
+							"classification",
+							`${i + 1}.png`,
+						);
 						const exists = existsSync(outputPath);
 						expect(exists, `File ${outputPath} should exist`).toBe(true);
 					}
@@ -326,53 +338,55 @@ describe(
 			TEST_TIMEOUT,
 		);
 
-		describe("Image Embedding", () => {
-			const MODEL_URL = process.env.EMBEDDING_MODEL_URL ?? "";
-			let modelPath: string;
+		describe(
+			"Image Embedding",
+			() => {
+				const MODEL_URL = process.env.EMBEDDING_MODEL_URL ?? "";
+				let modelPath: string;
 
-			beforeAll(async () => {
-				modelPath = await downloadModel(MODEL_URL, "embedding.onnx");
-			});
+				beforeAll(async () => {
+					modelPath = await downloadModel(MODEL_URL, "embedding.onnx");
+				}, TEST_TIMEOUT);
 
-			it("should create embeddings for images", async () => {
-				const imageBuffers = await Promise.all(
-					testImages.map((url) => downloadImage(url))
-				);
+				it("should create embeddings for images", async () => {
+					const imageBuffers = await Promise.all(
+						testImages.map((url) => downloadImage(url)),
+					);
 
-				const result = await model
-					.createEmbeddings()
-					.withOptions({
-						dimension: 768,
-						targetSize: [384, 384],
-					})
-					.in(imageBuffers)
-					.using(modelPath)
-					.andNormalize()
-					.now();
+					const result = await model
+						.createEmbeddings()
+						.withOptions({
+							dimension: 768,
+							targetSize: [384, 384],
+						})
+						.in(imageBuffers)
+						.using(modelPath)
+						.andNormalize()
+						.now();
 
-				expect(result).toBeDefined();
-				expect(Array.isArray(result)).toBe(true);
-				
-				// 각 이미지의 임베딩 검증
-				for (const embedding of result) {
-					expect(Array.isArray(embedding)).toBe(true);
-					expect(embedding).toHaveLength(768);
-					for (const value of embedding) {
-						expect(typeof value).toBe("number");
+					expect(result).toBeDefined();
+					expect(Array.isArray(result)).toBe(true);
+
+					// 각 이미지의 임베딩 검증
+					for (const embedding of result) {
+						expect(Array.isArray(embedding)).toBe(true);
+						expect(embedding).toHaveLength(768);
+						for (const value of embedding) {
+							expect(typeof value).toBe("number");
+						}
 					}
-				}
-			});
+				});
 
-			it("should create merged embeddings for images", async () => {
-				const imageBuffers = await Promise.all(
-					testImages.map((url) => downloadImage(url)),
-				);
+				it("should create merged embeddings for images", async () => {
+					const imageBuffers = await Promise.all(
+						testImages.map((url) => downloadImage(url)),
+					);
 
-				const result = await model
-					.createEmbeddings()
-					.in(imageBuffers)
-					.using(modelPath)
-					.withOptions({
+					const result = await model
+						.createEmbeddings()
+						.in(imageBuffers)
+						.using(modelPath)
+						.withOptions({
 							dimension: 768,
 							targetSize: [384, 384],
 						})
@@ -380,122 +394,127 @@ describe(
 						.andMerge()
 						.now();
 
-				expect(result).toBeDefined();
-				expect(Array.isArray(result)).toBe(true);
-				expect(result).toHaveLength(1);
-				for (const embedding of result) {
-					expect(Array.isArray(embedding)).toBe(true);
-					expect(embedding).toHaveLength(768);
-					for (const value of embedding) {
-						expect(typeof value).toBe("number");
+					expect(result).toBeDefined();
+					expect(Array.isArray(result)).toBe(true);
+					expect(result).toHaveLength(1);
+					for (const embedding of result) {
+						expect(Array.isArray(embedding)).toBe(true);
+						expect(embedding).toHaveLength(768);
+						for (const value of embedding) {
+							expect(typeof value).toBe("number");
+						}
 					}
-				}
-			});
+				});
 
-			it("should handle invalid images gracefully", async () => {
-				const invalidBuffer = Buffer.from("invalid data");
+				it("should handle invalid images gracefully", async () => {
+					const invalidBuffer = Buffer.from("invalid data");
 
-				await expect(
-					model
+					await expect(
+						model
+							.createEmbeddings()
+							.withOptions({
+								dimension: 768,
+								targetSize: [384, 384],
+							})
+							.in([invalidBuffer])
+							.using(modelPath)
+							.andNormalize()
+							.now(),
+					).rejects.toThrow();
+				});
+			},
+			TEST_TIMEOUT,
+		);
+
+		describe(
+			"Image Embedding (NHWC)",
+			() => {
+				const MODEL_URL = process.env.EMBEDDING_MODEL_URL_2 ?? "";
+				let modelPath: string;
+
+				beforeAll(async () => {
+					modelPath = await downloadModel(MODEL_URL, "embedding_2.onnx");
+				}, TEST_TIMEOUT);
+
+				it("should create embeddings for images", async () => {
+					const imageBuffers = await Promise.all(
+						testImages.map((url) => downloadImage(url)),
+					);
+
+					const result = await model
 						.createEmbeddings()
 						.withOptions({
-							dimension: 768,
-							targetSize: [384, 384],
-						})
-						.in([invalidBuffer])
-						.using(modelPath)
-						.andNormalize()
-						.now(),
-				).rejects.toThrow();
-			});
-
-		}, TEST_TIMEOUT);
-
-		describe("Image Embedding (NHWC)", () => {
-			const MODEL_URL = process.env.EMBEDDING_MODEL_URL_2 ?? "";
-			let modelPath: string;
-
-			beforeAll(async () => {
-				modelPath = await downloadModel(MODEL_URL, "embedding_2.onnx");
-			});
-
-			it("should create embeddings for images", async () => {
-				const imageBuffers = await Promise.all(
-					testImages.map((url) => downloadImage(url))
-				);
-
-				const result = await model
-					.createEmbeddings()
-					.withOptions({
-						dimension: 1024,
-						targetSize: [448, 448],
-						inputShape: "NHWC"
-					})
-					.in(imageBuffers)
-					.using(modelPath)
-					.andNormalize()
-					.now();
-
-				expect(result).toBeDefined();
-				expect(Array.isArray(result)).toBe(true);
-				
-				// 각 이미지의 임베딩 검증
-				for (const embedding of result) {
-					expect(Array.isArray(embedding)).toBe(true);
-					expect(embedding).toHaveLength(1024);
-					for (const value of embedding) {
-						expect(typeof value).toBe("number");
-					}
-				}
-			});
-
-			it("should create merged embeddings for images", async () => {
-				const imageBuffers = await Promise.all(
-					testImages.map((url) => downloadImage(url)),
-				);
-
-				const result = await model
-					.createEmbeddings()
-					.in(imageBuffers)
-					.using(modelPath)
-					.withOptions({
 							dimension: 1024,
 							targetSize: [448, 448],
-							inputShape: "NHWC"
+							inputShape: "NHWC",
+						})
+						.in(imageBuffers)
+						.using(modelPath)
+						.andNormalize()
+						.now();
+
+					expect(result).toBeDefined();
+					expect(Array.isArray(result)).toBe(true);
+
+					// 각 이미지의 임베딩 검증
+					for (const embedding of result) {
+						expect(Array.isArray(embedding)).toBe(true);
+						expect(embedding).toHaveLength(1024);
+						for (const value of embedding) {
+							expect(typeof value).toBe("number");
+						}
+					}
+				});
+
+				it("should create merged embeddings for images", async () => {
+					const imageBuffers = await Promise.all(
+						testImages.map((url) => downloadImage(url)),
+					);
+
+					const result = await model
+						.createEmbeddings()
+						.in(imageBuffers)
+						.using(modelPath)
+						.withOptions({
+							dimension: 1024,
+							targetSize: [448, 448],
+							inputShape: "NHWC",
 						})
 						.andNormalize()
 						.andMerge()
 						.now();
 
-				expect(result).toBeDefined();
-				expect(Array.isArray(result)).toBe(true);
-				expect(result).toHaveLength(1);
-				for (const embedding of result) {
-					expect(Array.isArray(embedding)).toBe(true);
-					expect(embedding).toHaveLength(1024);
-					for (const value of embedding) {
-						expect(typeof value).toBe("number");
+					expect(result).toBeDefined();
+					expect(Array.isArray(result)).toBe(true);
+					expect(result).toHaveLength(1);
+					for (const embedding of result) {
+						expect(Array.isArray(embedding)).toBe(true);
+						expect(embedding).toHaveLength(1024);
+						for (const value of embedding) {
+							expect(typeof value).toBe("number");
+						}
 					}
-				}
-			});
+				});
 
-			it("should handle invalid images gracefully", async () => {
-				const invalidBuffer = Buffer.from("invalid data");
+				it("should handle invalid images gracefully", async () => {
+					const invalidBuffer = Buffer.from("invalid data");
 
-				await expect(
-					model
-						.createEmbeddings()
-						.withOptions({
-							dimension: 1024,
-							targetSize: [448, 448],
-						})
-						.in([invalidBuffer])
-						.using(modelPath)
-						.andNormalize()
-						.now(),
-				).rejects.toThrow();
-			});
-		}, TEST_TIMEOUT);
+					await expect(
+						model
+							.createEmbeddings()
+							.withOptions({
+								dimension: 1024,
+								targetSize: [448, 448],
+							})
+							.in([invalidBuffer])
+							.using(modelPath)
+							.andNormalize()
+							.now(),
+					).rejects.toThrow();
+				});
+			},
+			TEST_TIMEOUT,
+		);
 
 		describe("Session Management", () => {
 			const MODEL_URL = process.env.DETECTION_MODEL_URL ?? "";
@@ -508,47 +527,49 @@ describe(
 			// 세션 상태 출력 함수 추가
 			const logSessionStats = (model: EasyORT, context: string) => {
 				const stats = model.getSessionStats();
-				};
+			};
 
 			it("should reuse cached session for the same model", async () => {
 				logSessionStats(model, "Initial State");
-				
+
 				const session1 = await model.createSession(modelPath);
 				logSessionStats(model, "After First Session");
-				
+
 				const session2 = await model.createSession(modelPath);
 				logSessionStats(model, "After Second Session");
-				
+
 				expect(session1).toBe(session2);
 			});
 
 			it("should properly release individual sessions", async () => {
 				logSessionStats(model, "Before Session Creation");
-				
+
 				const session = await model.createSession(modelPath);
 				logSessionStats(model, "After Session Creation");
-				
+
 				await model.releaseSession(session);
 				logSessionStats(model, "After Session Release");
 
 				// 새로운 세션 생성 시 다른 인스턴스여야 함
 				const newSession = await model.createSession(modelPath);
 				logSessionStats(model, "After New Session Creation");
-				
+
 				expect(newSession).not.toBe(session);
 			});
 
 			it("should handle multiple models and release all sessions", async () => {
 				logSessionStats(model, "Initial State");
-				
+
 				const detectionSession = await model.createSession(modelPath);
 				logSessionStats(model, "After Detection Session");
-				
+
 				const classificationModelPath = await downloadModel(
 					process.env.CLASSIFICATION_MODEL_URL ?? "",
-					"classification.onnx"
+					"classification.onnx",
 				);
-				const classificationSession = await model.createSession(classificationModelPath);
+				const classificationSession = await model.createSession(
+					classificationModelPath,
+				);
 				logSessionStats(model, "After Classification Session");
 
 				expect(detectionSession).not.toBe(classificationSession);
@@ -558,21 +579,23 @@ describe(
 
 				// 새로운 세션들은 이전 세션들과 달라야 함
 				const newDetectionSession = await model.createSession(modelPath);
-				const newClassificationSession = await model.createSession(classificationModelPath);
+				const newClassificationSession = await model.createSession(
+					classificationModelPath,
+				);
 
 				expect(newDetectionSession).not.toBe(detectionSession);
 				expect(newClassificationSession).not.toBe(classificationSession);
-				
+
 				logSessionStats(model, "Final State");
 			});
 
 			it("should handle session limits and memory constraints", async () => {
 				// 제한된 리소스로 새 EasyORT 인스턴스 생성
-				const limitedModel = new EasyORT('node', {
+				const limitedModel = new EasyORT("node", {
 					maxSessions: 2,
-					maxMemoryMB: 512
+					maxMemoryMB: 512,
 				});
-				
+
 				logSessionStats(limitedModel, "Initial State");
 
 				// 첫 번째 모델 로드
@@ -582,15 +605,17 @@ describe(
 				// 두 번째 모델 로드 (분류 모델)
 				const classificationModelPath = await downloadModel(
 					process.env.CLASSIFICATION_MODEL_URL ?? "",
-					"classification.onnx"
+					"classification.onnx",
 				);
-				const session2 = await limitedModel.createSession(classificationModelPath);
+				const session2 = await limitedModel.createSession(
+					classificationModelPath,
+				);
 				logSessionStats(limitedModel, "After Second Session");
 
 				// 세 번째 모델 로드 시도 (임베딩 모델) - 가장 오래된 세션이 자동으로 해제되어야 함
 				const embeddingModelPath = await downloadModel(
 					process.env.EMBEDDING_MODEL_URL ?? "",
-					"embedding.onnx"
+					"embedding.onnx",
 				);
 				const session3 = await limitedModel.createSession(embeddingModelPath);
 				logSessionStats(limitedModel, "After Third Session");
@@ -606,23 +631,17 @@ describe(
 
 			it("should handle session cleanup after task completion", async () => {
 				logSessionStats(model, "Initial State");
-				
+
 				const imageBuffer = await downloadImage(testImages[0]);
-				
+
 				// 첫 번째 실행
-				await model.detect(["person"])
-					.in([imageBuffer])
-					.using(modelPath)
-					.now();
-				
+				await model.detect(["person"]).in([imageBuffer]).using(modelPath).now();
+
 				logSessionStats(model, "After First Detection");
 
 				// 동일한 모델로 두 번째 실행 - 세션이 재사용되어야 함
-				await model.detect(["person"])
-					.in([imageBuffer])
-					.using(modelPath)
-					.now();
-				
+				await model.detect(["person"]).in([imageBuffer]).using(modelPath).now();
+
 				logSessionStats(model, "After Second Detection");
 
 				// 세션 해제
@@ -630,17 +649,14 @@ describe(
 				logSessionStats(model, "After Session Release");
 
 				// 세션 해제 후 새로운 실행 - 새로운 세션이 생성되어야 함
-				await model.detect(["person"])
-					.in([imageBuffer])
-					.using(modelPath)
-					.now();
-				
+				await model.detect(["person"]).in([imageBuffer]).using(modelPath).now();
+
 				logSessionStats(model, "Final State");
 			});
 
 			it("should respect memory options when creating session", async () => {
 				const imageBuffer = await downloadImage(testImages[0]);
-				
+
 				// 메모리 옵션을 비활성화한 경우
 				const resultWithoutMemOpt = await model
 					.detect(["person"])
@@ -648,7 +664,7 @@ describe(
 					.using(modelPath)
 					.withMemoryOptions({
 						enableCpuMemArena: false,
-						enableMemPattern: false
+						enableMemPattern: false,
 					})
 					.now();
 
@@ -662,7 +678,7 @@ describe(
 					.using(modelPath)
 					.withMemoryOptions({
 						enableCpuMemArena: true,
-						enableMemPattern: true
+						enableMemPattern: true,
 					})
 					.now();
 
