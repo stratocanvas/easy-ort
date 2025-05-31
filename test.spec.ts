@@ -409,7 +409,7 @@ describe(
 				).rejects.toThrow();
 			});
 
-		});
+		}, TEST_TIMEOUT);
 
 		describe("Image Embedding (NHWC)", () => {
 			const MODEL_URL = process.env.EMBEDDING_MODEL_URL_2 ?? "";
@@ -495,7 +495,7 @@ describe(
 						.now(),
 				).rejects.toThrow();
 			});
-		});
+		}, TEST_TIMEOUT);
 
 		describe("Session Management", () => {
 			const MODEL_URL = process.env.DETECTION_MODEL_URL ?? "";
