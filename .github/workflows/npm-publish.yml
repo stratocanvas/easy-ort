@@ -108,7 +108,7 @@ jobs:
           node-version: 20
           cache: 'npm'
           registry-url: https://registry.npmjs.org/
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install=skip
       - run: npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
