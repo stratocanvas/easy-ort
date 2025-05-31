@@ -2,14 +2,15 @@
 
 # easy-ort &middot; [![build status](https://img.shields.io/github/actions/workflow/status/stratocanvas/easy-ort/npm-publish.yml?logo=github)](https://github.com/stratocanvas/easy-ort/actions/workflows/npm-publish.yml) [![codecov](https://codecov.io/gh/stratocanvas/easy-ort/graph/badge.svg?token=9ODSUZ09UU)](https://codecov.io/gh/stratocanvas/easy-ort) [![version](https://img.shields.io/npm/v/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort) [![downloads](https://img.shields.io/npm/dw/%40stratocanvas%2Feasy-ort?logo=npm)](https://www.npmjs.com/package/@stratocanvas/easy-ort)
 
-A lightweight and intuitive wrapper for ONNX Runtime in Node.js. Supports object detection, image classification, and both vision/text embeddings with a clean, chainable API.
+A lightweight and intuitive wrapper for ONNX Runtime in Node.js. Supports object detection, image classification, and vision embeddings with a clean, chainable API.
 
 ## Features
 - 🚀 Fluent chainable API
-- 🖼️ Batch processing for images and text
+- 🖼️ Batch processing for images
 - 📊 Result visualization
 - 🎯 Built-in NMS for object detection
-- 🧬 Vision and text embedding support
+- 🧬 Vision embedding support
+
 ## Installation 
 
 ```bash
@@ -116,7 +117,7 @@ const result = await new EasyORT('node')
 ### Image Embeddings
 ```javascript
 const result = await new EasyORT('node')
-  .createEmbeddingsFor('image')
+  .createEmbeddings()
   .in(imageBuffers)
   .using('./vision_model.onnx')
   .withOptions({
@@ -173,28 +174,17 @@ const result = await new EasyORT()
 // Result will be an array matching the input batch size
 ```
 
-The same batch processing works for text inputs as well:
-
-```typescript
-const result = await new EasyORT('node')
-  .createEmbeddingsFor('text')
-  .in(['first text', 'second text', 'third text'])  // Single string or string[]
-  .using('./text_model.onnx')
-  .withOptions({ dimension: 768 })
-  .now()
-```
-
 ## API Reference
 
 ### Task Initialization
 - `.detect(labels: string[])` - Start object detection task
 - `.classify(labels: string[])` - Start image classification task
-- `.createEmbeddingsFor('vision' | 'text')` - Start embedding extraction task
+- `.createEmbeddings()` - Start embedding extraction task
 
 ### Chain Methods
 - `.withOptions(options)` - Set task-specific options
 - `.withMemoryOptions(options)` - Set ONNX Runtime memory optimization options
-- `.in(inputs)` - Provide input data (Buffer[] for images, string[] for text)
+- `.in(inputs)` - Provide input data (Buffer[] for images)
 - `.using(modelPath)` - Specify ONNX model path
 - `.andDraw()` - Enable result visualization (detection/classification only)
 - `.andNormalize()` - Enable L2 normalization (embeddings only)
@@ -227,7 +217,7 @@ const result = await new EasyORT('node')
 // Embeddings
 {
   dimension?: number;           // Default: 768
-  targetSize?: [number, number]; // Default: [384, 384], vision only
+  targetSize?: [number, number]; // Default: [384, 384]
   inputShape?: 'NCHW' | 'NHWC'; // Default: 'NCHW', tensor format for input images
 }
 
@@ -299,7 +289,6 @@ The `aspectRatioThreshold` option allows you to selectively apply SAHI only to i
 - Single input/output nodes
 - Input formats:
   - Vision: NCHW format, normalized to 0-1
-  - Text: 1D token sequence
 - Output formats:
   - Detection: [batch_size, num_boxes, 5 + num_classes]
   - Classification: [batch_size, num_classes]

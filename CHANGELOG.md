@@ -1,5 +1,8 @@
 ## Change Log
 
+### v2.2.0
+- Remove text embedding
+
 ### v2.1.0
 - Add NHWC format support
 

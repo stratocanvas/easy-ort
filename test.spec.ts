@@ -340,7 +340,7 @@ describe(
 				);
 
 				const result = await model
-					.createEmbeddingsFor("image")
+					.createEmbeddings()
 					.withOptions({
 						dimension: 768,
 						targetSize: [384, 384],
@@ -369,7 +369,7 @@ describe(
 				);
 
 				const result = await model
-					.createEmbeddingsFor("image")
+					.createEmbeddings()
 					.in(imageBuffers)
 					.using(modelPath)
 					.withOptions({
@@ -397,7 +397,7 @@ describe(
 
 				await expect(
 					model
-						.createEmbeddingsFor("image")
+						.createEmbeddings()
 						.withOptions({
 							dimension: 768,
 							targetSize: [384, 384],
@@ -425,7 +425,7 @@ describe(
 				);
 
 				const result = await model
-					.createEmbeddingsFor("image")
+					.createEmbeddings()
 					.withOptions({
 						dimension: 1024,
 						targetSize: [448, 448],
@@ -455,7 +455,7 @@ describe(
 				);
 
 				const result = await model
-					.createEmbeddingsFor("image")
+					.createEmbeddings()
 					.in(imageBuffers)
 					.using(modelPath)
 					.withOptions({
@@ -484,7 +484,7 @@ describe(
 
 				await expect(
 					model
-						.createEmbeddingsFor("image")
+						.createEmbeddings()
 						.withOptions({
 							dimension: 1024,
 							targetSize: [448, 448],

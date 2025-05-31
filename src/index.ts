@@ -19,14 +19,13 @@ import type { DetectionResult, ClassificationResult, EmbeddingResult } from "./t
 type FeedsType = { [key: string]: RuntimeTensor };
 
 class TaskBuilder<T extends TaskResult> {
-	private inputs: Buffer[] | string[] = [];
+	private inputs: Buffer[] = [];
 	private modelPath = "";
 	private options: TaskOptions = {};
 	private shouldDraw = false;
 	private shouldNormalize = false;
 	private shouldMerge = false;
 	private taskType: TaskType;
-	private inputType: "image" | "text";
 	private easyOrt: EasyORT;
 	private static MAX_BATCH_SIZE = 32;
 	private memoryOptions: { enableCpuMemArena: boolean; enableMemPattern: boolean } = {
@@ -35,9 +34,8 @@ class TaskBuilder<T extends TaskResult> {
 	};
 
 	
-	constructor(taskType: TaskType, inputType: "image" | "text", easyOrt: EasyORT) {
+	constructor(taskType: TaskType, easyOrt: EasyORT) {
 		this.taskType = taskType;
-		this.inputType = inputType;
 		this.easyOrt = easyOrt;
 	}
 
@@ -54,7 +52,7 @@ class TaskBuilder<T extends TaskResult> {
 		return this;
 	}
 
-	in(inputs: Buffer[] | string[]): TaskBuilder<T> {
+	in(inputs: Buffer[]): TaskBuilder<T> {
 		this.inputs = inputs;
 		return this;
 	}
@@ -127,7 +125,7 @@ class TaskBuilder<T extends TaskResult> {
 	}
 
 	private async processBatch(
-		inputs: Buffer[] | string[] | PreprocessResult[],
+		inputs: Buffer[] | PreprocessResult[],
 		session: RuntimeSession,
 		startIdx: number,
 		batchSize: number,
@@ -135,7 +133,7 @@ class TaskBuilder<T extends TaskResult> {
 	): Promise<T[]> {
 		let tensor: RuntimeTensor | undefined;
 		try {
-			let inputTensor: Float32Array | BigInt64Array;
+			let inputTensor: Float32Array;
 			let originalSizes: [number, number][] = [];
 			let sliceInfo: PreprocessResult['sliceInfo'];
 			let slicesPerImage: number[] = [];
@@ -154,35 +152,19 @@ class TaskBuilder<T extends TaskResult> {
 				}
 			} else {
 				// 일반적인 전처리
-				const batchInputs = (inputs as (Buffer[] | string[])).slice(startIdx, startIdx + batchSize);
-				if (this.inputType === "image") {
-					const preprocessed = await preprocess(
-						batchInputs as Buffer[],
-						this.options.targetSize || [384, 384],
-						this.taskType,
-						useSAHI ? this.options.sahi : undefined,
-						this.options.inputShape
-					);
-					inputTensor = preprocessed.inputTensor;
-					originalSizes = preprocessed.originalSizes;
-					if (useSAHI) {
-						sliceInfo = preprocessed.sliceInfo;
-						slicesPerImage = preprocessed.slicesPerImage || [];
-					}
-				} else {
-					// Text input processing
-					const maxLength = Math.max(
-						...(this.inputs as string[]).map((text) => text.length),
-					);
-					inputTensor = new BigInt64Array(batchSize * maxLength);
-
-					// Simple tokenization
-					(this.inputs as string[]).forEach((text, i) => {
-						const chars = Array.from(text);
-						chars.forEach((char, j) => {
-							inputTensor[i * maxLength + j] = BigInt(char.charCodeAt(0));
-						});
-					});
+				const batchInputs = (inputs as Buffer[]).slice(startIdx, startIdx + batchSize);
+				const preprocessed = await preprocess(
+					batchInputs,
+					this.options.targetSize || [384, 384],
+					this.taskType,
+					useSAHI ? this.options.sahi : undefined,
+					this.options.inputShape
+				);
+				inputTensor = preprocessed.inputTensor;
+				originalSizes = preprocessed.originalSizes;
+				if (useSAHI) {
+					sliceInfo = preprocessed.sliceInfo;
+					slicesPerImage = preprocessed.slicesPerImage || [];
 				}
 			}
 
@@ -190,20 +172,16 @@ class TaskBuilder<T extends TaskResult> {
 				? sliceInfo.length
 				: batchSize;
 
+			const [targetWidth, targetHeight] = this.options.targetSize || [384, 384];
 			let tensorDims: number[];
-			if (this.inputType === "image") {
-				const [targetWidth, targetHeight] = this.options.targetSize || [384, 384];
-				if (this.options.inputShape === 'NHWC') {
-					tensorDims = [actualBatchSize, targetHeight, targetWidth, 3];
-				} else {
-					tensorDims = [actualBatchSize, 3, targetHeight, targetWidth];
-				}
+			if (this.options.inputShape === 'NHWC') {
+				tensorDims = [actualBatchSize, targetHeight, targetWidth, 3];
 			} else {
-				tensorDims = [actualBatchSize, inputTensor.length / actualBatchSize];
+				tensorDims = [actualBatchSize, 3, targetHeight, targetWidth];
 			}
 
 			tensor = this.easyOrt.createTensor(
-				this.inputType === "image" ? "float32" : "int64",
+				"float32",
 				inputTensor,
 				tensorDims
 			);
@@ -321,7 +299,7 @@ class TaskBuilder<T extends TaskResult> {
 				// SAHI를 사용하는 경우, 먼저 전체 이미지를 전처리하여 슬라이스 개수 파악
 				if (this.taskType === 'detection' && this.options.sahi) {
 					const preprocessed = await preprocess(
-						this.inputs as Buffer[],
+						this.inputs,
 						this.options.targetSize || [384, 384],
 						this.taskType,
 						this.options.sahi,
@@ -440,7 +418,7 @@ export default class EasyORT {
 		return session;
 	}
 
-	public createTensor(type: "float32" | "int64", data: Float32Array | BigInt64Array, dims: number[]): RuntimeTensor {
+	public createTensor(type: "float32", data: Float32Array, dims: number[]): RuntimeTensor {
 		return this.provider.createTensor(type, data, dims);
 	}
 
@@ -487,15 +465,15 @@ export default class EasyORT {
 	}
 
 	detect(labels: string[]): TaskBuilder<DetectionResult> {
-		return new TaskBuilder<DetectionResult>("detection", "image", this).withOptions({ labels });
+		return new TaskBuilder<DetectionResult>("detection", this).withOptions({ labels });
 	}
 
 	classify(labels: string[]): TaskBuilder<ClassificationResult> {
-		return new TaskBuilder<ClassificationResult>("classification", "image", this).withOptions({ labels });
+		return new TaskBuilder<ClassificationResult>("classification", this).withOptions({ labels });
 	}
 
-	createEmbeddingsFor(type: "image" | "text"): TaskBuilder<number[]> {
-		return new TaskBuilder<number[]>("embedding", type, this);
+	createEmbeddings(): TaskBuilder<number[]> {
+		return new TaskBuilder<number[]>("embedding", this);
 	}
 
 	public async run(session: RuntimeSession, feeds: FeedsType): Promise<{ [key: string]: RuntimeTensor }> {
