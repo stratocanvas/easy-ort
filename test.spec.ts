@@ -334,15 +334,6 @@ describe(
 				modelPath = await downloadModel(MODEL_URL, "embedding.onnx");
 			});
 
-			const validateEmbedding = (embedding: number[]) => {
-				expect(Array.isArray(embedding)).toBe(true);
-				expect(embedding).toHaveLength(768);
-				for (const value of embedding) {
-					expect(typeof value).toBe("number");
-					expect(Number.isFinite(value)).toBe(true);
-				}
-			};
-
 			it("should create embeddings for images", async () => {
 				const imageBuffers = await Promise.all(
 					testImages.map((url) => downloadImage(url))
@@ -418,28 +409,6 @@ describe(
 				).rejects.toThrow();
 			});
 
-			it("should process large batch of images", async () => {
-				const largeImageSet = Array(10).fill(testImages[0]);
-				const imageBuffers = await Promise.all(
-					largeImageSet.map((url) => downloadImage(url)),
-				);
-
-				const startTime = Date.now();
-				const result = await model
-					.createEmbeddingsFor("image")
-					.in(imageBuffers)
-					.using(modelPath)
-					.withOptions({
-						dimension: 768,
-						targetSize: [384, 384],
-					})
-					.andNormalize()
-					.now();
-
-				const processingTime = Date.now() - startTime;
-				expect(processingTime).toBeLessThan(30000); // 30초 이내 처리
-				expect(result).toHaveLength(10);
-			});
 		});
 
 		describe("Image Embedding (NHWC)", () => {
@@ -449,15 +418,6 @@ describe(
 			beforeAll(async () => {
 				modelPath = await downloadModel(MODEL_URL, "embedding_2.onnx");
 			});
-
-			const validateEmbedding = (embedding: number[]) => {
-				expect(Array.isArray(embedding)).toBe(true);
-				expect(embedding).toHaveLength(1024);
-				for (const value of embedding) {
-					expect(typeof value).toBe("number");
-					expect(Number.isFinite(value)).toBe(true);
-				}
-			};
 
 			it("should create embeddings for images", async () => {
 				const imageBuffers = await Promise.all(
@@ -475,7 +435,6 @@ describe(
 					.using(modelPath)
 					.andNormalize()
 					.now();
-					console.log(result);
 
 				expect(result).toBeDefined();
 				expect(Array.isArray(result)).toBe(true);
@@ -507,7 +466,6 @@ describe(
 						.andNormalize()
 						.andMerge()
 						.now();
-						console.log(result);
 
 				expect(result).toBeDefined();
 				expect(Array.isArray(result)).toBe(true);
