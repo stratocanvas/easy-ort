@@ -36,6 +36,7 @@ jobs:
           DETECTION_MODEL_URL: ${{ vars.DETECTION_MODEL_URL }}
           CLASSIFICATION_MODEL_URL: ${{ vars.CLASSIFICATION_MODEL_URL }}
           EMBEDDING_MODEL_URL: ${{ vars.EMBEDDING_MODEL_URL }}
+          EMBEDDING_MODEL_URL_2: ${{ secrets.EMBEDDING_MODEL_URL_2 }}
       - name: Upload coverage reports
         uses: codecov/codecov-action@v5
         with:
@@ -110,7 +111,7 @@ jobs:
           node-version: 20
           cache: 'npm'
           registry-url: https://registry.npmjs.org/
-      - run: npm ci
+      - run: npm ci --onnxruntime-node-install=skip
       - run: npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

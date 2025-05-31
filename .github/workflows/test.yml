@@ -21,7 +21,7 @@ jobs:
           cache: 'npm'
           
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --onnxruntime-node-install=skip
         
       - name: Create directories
         run: |
@@ -44,6 +44,7 @@ jobs:
           DETECTION_MODEL_URL: ${{ vars.DETECTION_MODEL_URL }}
           CLASSIFICATION_MODEL_URL: ${{ vars.CLASSIFICATION_MODEL_URL }}
           EMBEDDING_MODEL_URL: ${{ vars.EMBEDDING_MODEL_URL }}
+          EMBEDDING_MODEL_URL_2: ${{ secrets.EMBEDDING_MODEL_URL_2 }}
           
       - name: Upload test artifacts
         if: always()
