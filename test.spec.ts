@@ -442,6 +442,103 @@ describe(
 			});
 		});
 
+		describe("Image Embedding (NHWC)", () => {
+			const MODEL_URL = process.env.EMBEDDING_MODEL_URL_2 ?? "";
+			let modelPath: string;
+
+			beforeAll(async () => {
+				modelPath = await downloadModel(MODEL_URL, "embedding_2.onnx");
+			});
+
+			const validateEmbedding = (embedding: number[]) => {
+				expect(Array.isArray(embedding)).toBe(true);
+				expect(embedding).toHaveLength(1024);
+				for (const value of embedding) {
+					expect(typeof value).toBe("number");
+					expect(Number.isFinite(value)).toBe(true);
+				}
+			};
+
+			it("should create embeddings for images", async () => {
+				const imageBuffers = await Promise.all(
+					testImages.map((url) => downloadImage(url))
+				);
+
+				const result = await model
+					.createEmbeddingsFor("image")
+					.withOptions({
+						dimension: 1024,
+						targetSize: [448, 448],
+						inputShape: "NHWC"
+					})
+					.in(imageBuffers)
+					.using(modelPath)
+					.andNormalize()
+					.now();
+					console.log(result);
+
+				expect(result).toBeDefined();
+				expect(Array.isArray(result)).toBe(true);
+				
+				// 각 이미지의 임베딩 검증
+				for (const embedding of result) {
+					expect(Array.isArray(embedding)).toBe(true);
+					expect(embedding).toHaveLength(1024);
+					for (const value of embedding) {
+						expect(typeof value).toBe("number");
+					}
+				}
+			});
+
+			it("should create merged embeddings for images", async () => {
+				const imageBuffers = await Promise.all(
+					testImages.map((url) => downloadImage(url)),
+				);
+
+				const result = await model
+					.createEmbeddingsFor("image")
+					.in(imageBuffers)
+					.using(modelPath)
+					.withOptions({
+							dimension: 1024,
+							targetSize: [448, 448],
+							inputShape: "NHWC"
+						})
+						.andNormalize()
+						.andMerge()
+						.now();
+						console.log(result);
+
+				expect(result).toBeDefined();
+				expect(Array.isArray(result)).toBe(true);
+				expect(result).toHaveLength(1);
+				for (const embedding of result) {
+					expect(Array.isArray(embedding)).toBe(true);
+					expect(embedding).toHaveLength(1024);
+					for (const value of embedding) {
+						expect(typeof value).toBe("number");
+					}
+				}
+			});
+
+			it("should handle invalid images gracefully", async () => {
+				const invalidBuffer = Buffer.from("invalid data");
+
+				await expect(
+					model
+						.createEmbeddingsFor("image")
+						.withOptions({
+							dimension: 1024,
+							targetSize: [448, 448],
+						})
+						.in([invalidBuffer])
+						.using(modelPath)
+						.andNormalize()
+						.now(),
+				).rejects.toThrow();
+			});
+		});
+
 		describe("Session Management", () => {
 			const MODEL_URL = process.env.DETECTION_MODEL_URL ?? "";
 			let modelPath: string;

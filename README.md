@@ -113,28 +113,7 @@ const result = await new EasyORT('node')
 */
 ```
 
-### Text Embeddings
-```javascript
-const result = await new EasyORT('node')
-  .createEmbeddingsFor('text')
-  .in(['sample text', 'another text'])
-  .using('./text_model.onnx')
-  .withOptions({ dimension: 768 })
-  .andNormalize()
-  .now()
-
-/* Output example:
-[
-  [0.12, -0.34, 0.56, ...],  // 768-dimensional vector for 'sample text'
-  [0.23, 0.11, -0.44, ...]   // 768-dimensional vector for 'another text'
-]
-
-// With .andMerge():
-[0.175, -0.115, 0.06, ...]   // Single averaged 768-dimensional vector
-*/
-```
-
-### Vision Embeddings
+### Image Embeddings
 ```javascript
 const result = await new EasyORT('node')
   .createEmbeddingsFor('image')
@@ -230,6 +209,7 @@ const result = await new EasyORT('node')
   confidenceThreshold?: number;  // Default: 0.2
   iouThreshold?: number;        // Default: 0.45
   targetSize?: [number, number]; // Default: [384, 384]
+  inputShape?: 'NCHW' | 'NHWC'; // Default: 'NCHW', tensor format for input images
   sahi?: {                      // SAHI (Slicing Aided Hyper Inference)
     overlap: number;            // Default: 0.1, overlap ratio between slices
     mergeThreshold?: number;    // Threshold for merging overlapped detections
@@ -241,12 +221,14 @@ const result = await new EasyORT('node')
 {
   confidenceThreshold?: number;  // Default: 0.2
   targetSize?: [number, number]; // Default: [384, 384]
+  inputShape?: 'NCHW' | 'NHWC'; // Default: 'NCHW', tensor format for input images
 }
 
 // Embeddings
 {
   dimension?: number;           // Default: 768
   targetSize?: [number, number]; // Default: [384, 384], vision only
+  inputShape?: 'NCHW' | 'NHWC'; // Default: 'NCHW', tensor format for input images
 }
 
 // Memory Options
@@ -254,6 +236,24 @@ const result = await new EasyORT('node')
   enableCpuMemArena?: boolean;  // Default: true, enables CPU memory arena allocation
   enableMemPattern?: boolean;   // Default: true, enables memory pattern optimization
 }
+```
+
+### Input Tensor Format
+
+The `inputShape` option controls how image data is arranged in the input tensor. Use [Netron](https://netron.app/) to visualize your ONNX model and check the expected input format:
+
+```javascript
+// Check your model's input format using Netron at https://netron.app/
+// Then set the appropriate inputShape option
+
+const result = await new EasyORT('node')
+  .detect(['person', 'car'])
+  .withOptions({
+    inputShape: 'NCHW'  // or 'NHWC' based on your model
+  })
+  .in(imageBuffers)
+  .using('./model.onnx')
+  .now()
 ```
 
 ## Advanced Features
